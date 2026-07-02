@@ -55,6 +55,6 @@ spec:
           - {{ .Values.argocdClient.redirectUri | quote }}
         webOrigins:
           - "+"
-        # Fixed shared value — see values.yaml's argocdClient.secret comment
-        # for why this can't be ExternalSecret-sourced on this side.
-        secret: {{ .Values.argocdClient.secret | quote }}
+        # No secret here deliberately — Keycloak assigns a random one on
+        # creation, then set-client-secret-job.yaml overwrites it with the
+        # real value via the Admin API. See that template's header comment.

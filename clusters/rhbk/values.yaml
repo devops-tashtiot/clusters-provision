@@ -79,11 +79,12 @@ ldap:
 argocdClient:
   clientId: "argocd"
   redirectUri: "" # https://argocd.devopstashtiot.page/auth/callback — set per environment
-  # Fixed shared secret (matches this lab's convention for shared
-  # credentials, e.g. domain-controller's ldap_bind_password/'123456'
-  # convention) baked into the KeycloakRealmImport CR — Keycloak's realm
-  # import JSON has no mechanism to pull a client secret from a Secret
-  # reference, so this can't be ExternalSecret-sourced on the RHBK side.
-  # ArgoCD's own consumption of this same value *is* ExternalSecret/SSM-backed
-  # — see devtools-provision/devtools/argocd/templates/oidc-secret.yaml.
-  secret: "" # set per environment
+  # No secret set here — the KeycloakRealmImport CR (realm-import.yaml) omits
+  # it deliberately, since Keycloak's realm-import JSON has no mechanism to
+  # pull a client secret from a Secret reference and this value must never be
+  # committed to git in plaintext. Keycloak assigns a random secret to the
+  # client on creation; templates/set-client-secret-job.yaml then overwrites
+  # it via the Admin REST API with the real value pulled from SSM by
+  # ExternalSecret. See secretSsmParameter below (set per environment) and
+  # that Job template's header comment for the full flow.
+  secretSsmParameter: "" # set per environment
