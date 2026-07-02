@@ -29,10 +29,13 @@ spec:
         lastSync: 0
         config:
           vendor: "ad"
-          connectionUrl: {{ .Values.ldap.connectionUrl | quote }}
           usersDn: {{ .Values.ldap.usersDn | quote }}
-          bindDn: {{ .Values.ldap.bindDn | quote }}
-          bindCredential: {{ .Values.ldap.bindCredential | quote }}
+          # Placeholders — templates/set-ldap-credentials-job.yaml patches the
+          # real values onto this component via the Admin REST API after
+          # creation (see that Job's header comment for why).
+          connectionUrl: "ldap://placeholder:389"
+          bindDn: "placeholder"
+          bindCredential: "placeholder"
           usernameLDAPAttribute: "sAMAccountName"
           rdnLDAPAttribute: "cn"
           uuidLDAPAttribute: "objectGUID"

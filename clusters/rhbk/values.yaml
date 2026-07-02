@@ -70,11 +70,23 @@ adminUsername: "admin"
 realm:
   name: devtools
 
+# The domain controller's LDAP connection URL and bind service account
+# (sAMAccountName + password) devtools-labs/terraform/modules/domain-controller
+# publishes to SSM — never literal values in git (the private IP changes if
+# the instance is ever replaced, and the bind password is a real secret).
+# None of these can be wired into the KeycloakRealmImport CR (realm-import.yaml)
+# directly from a Secret reference — same limitation as
+# argocdClient.secretSsmParameter below — so realm-import.yaml creates the
+# LDAP federation provider with placeholders and
+# templates/set-ldap-credentials-job.yaml overwrites them via the Admin REST
+# API. See that Job's header comment for the full flow.
 ldap:
-  connectionUrl: "" # ldap://<domain-controller-private-ip>:389 — set per environment
+  connectionUrlSsmParameter: "" # set per environment
   usersDn: "" # OU=devops-tashtiot,DC=devtools,DC=local — set per environment
-  bindDn: "" # svc-devops-tashtiot@devtools.local — set per environment
-  bindCredential: "" # matches domain-controller's ldap_bind_password — set per environment
+
+ldapBind:
+  usernameSsmParameter: "" # set per environment
+  passwordSsmParameter: "" # set per environment
 
 argocdClient:
   clientId: "argocd"

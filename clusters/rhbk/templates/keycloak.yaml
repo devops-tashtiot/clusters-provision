@@ -112,15 +112,20 @@ spec:
           - name: wait-for-domain-controller
             image: busybox:1.36
             env:
-              - name: LDAP_HOST
-                value: {{ .Values.ldap.connectionUrl | trimPrefix "ldap://" | trimSuffix "/" | quote }}
+              - name: LDAP_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: rhbk-ldap
+                    key: connectionUrl
             command:
               - /bin/sh
               - -c
               - |
                 set -eu
-                host="${LDAP_HOST%%:*}"
-                port="${LDAP_HOST##*:}"
+                host_port="${LDAP_URL#ldap://}"
+                host_port="${host_port%/}"
+                host="${host_port%%:*}"
+                port="${host_port##*:}"
                 echo "Waiting for domain controller LDAP at $host:$port ..."
                 until nc -z -w2 "$host" "$port"; do
                   echo "  not reachable yet, retrying in 5s"
