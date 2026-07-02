@@ -1,0 +1,26 @@
+# RHBK needs a real hostname (unlike most cluster-infra tools) — its login
+# UI is where browsers land during ArgoCD's OIDC flow. Routed through
+# nginx-ingress + cloudflared like every other devtool rather than the
+# Operator's own basic ingress (disabled in keycloak.yaml).
+{{- if .Values.ingress.host }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rhbk
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rhbk-service
+                port:
+                  number: 8080
+{{- end }}

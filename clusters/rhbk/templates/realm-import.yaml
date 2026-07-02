@@ -1,0 +1,60 @@
+# Declarative realm: the ArgoCD OIDC client + the AD/LDAP user federation
+# provider, both expressed inline in the RealmRepresentation the Operator's
+# KeycloakRealmImport controller applies via the Admin REST API. This is the
+# modern Keycloak Operator's equivalent of separate Client/LDAP-federation
+# CRDs — the actively maintained k8s.keycloak.org/v2alpha1 API only ships
+# `Keycloak` and `KeycloakRealmImport` kinds; the older operator with
+# distinct KeycloakClient/KeycloakRealm/KeycloakUser CRDs has been
+# deprecated for years and doesn't support current Keycloak versions.
+# Client/LDAP-federation are still fully declarative here — just nested
+# inside one CR's realm spec instead of split across several CRs.
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: rhbk-devtools-realm
+  namespace: {{ .Release.Namespace }}
+spec:
+  keycloakCRName: rhbk
+  realm:
+    realm: {{ .Values.realm.name | quote }}
+    enabled: true
+    sslRequired: none # TLS terminates at Cloudflare, not in-cluster
+
+    userFederationProviders:
+      - displayName: "active-directory"
+        providerName: "ldap"
+        priority: 0
+        fullSyncPeriod: -1
+        changedSyncPeriod: -1
+        lastSync: 0
+        config:
+          vendor: "ad"
+          connectionUrl: {{ .Values.ldap.connectionUrl | quote }}
+          usersDn: {{ .Values.ldap.usersDn | quote }}
+          bindDn: {{ .Values.ldap.bindDn | quote }}
+          bindCredential: {{ .Values.ldap.bindCredential | quote }}
+          usernameLDAPAttribute: "sAMAccountName"
+          rdnLDAPAttribute: "cn"
+          uuidLDAPAttribute: "objectGUID"
+          userObjectClasses: "person, organizationalPerson, user"
+          authType: "simple"
+          editMode: "READ_ONLY"
+          syncRegistrations: "false"
+          pagination: "true"
+          connectionPooling: "true"
+
+    clients:
+      - clientId: {{ .Values.argocdClient.clientId | quote }}
+        name: "ArgoCD"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.argocdClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        # Fixed shared value — see values.yaml's argocdClient.secret comment
+        # for why this can't be ExternalSecret-sourced on this side.
+        secret: {{ .Values.argocdClient.secret | quote }}

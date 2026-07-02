@@ -1,0 +1,12 @@
+apiVersion: v2
+name: rhbk
+description: >-
+  RHBK/Keycloak — cluster-wide OIDC provider, backed by AD (via the
+  devtools-labs domain-controller) and issuing the OIDC client ArgoCD
+  authenticates with. Deployed via the upstream Keycloak Operator (RHBK's
+  upstream project — see README note below) rather than a Terraform-to-API
+  bridge, so the Realm/Client/LDAP-federation config stays versioned YAML
+  reconciled by ArgoCD like every other devtool.
+type: application
+version: 1.0.0
+appVersion: "26.6.4"

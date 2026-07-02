@@ -1,0 +1,89 @@
+# Values that are the same across every environment.
+# RDS connection, LDAP/AD connection, hostnames, and secrets are
+# environment-specific — see clusters-definition/clusters/rhbk/values.yaml.
+#
+# Note on RHBK vs upstream Keycloak: the actual Red Hat Build of Keycloak
+# container image lives on registry.redhat.io and requires a Red Hat
+# subscription this lab account doesn't have. The Operator, CRDs, and image
+# used here are the upstream keycloak.org project RHBK is downstream of —
+# same API (k8s.keycloak.org/v2alpha1), same Operator code. Swap
+# `keycloakImage` below to the registry.redhat.io RHBK image (plus an
+# ImagePullSecret) if a subscription is ever added — nothing else changes.
+
+operatorImage: "quay.io/keycloak/keycloak-operator:26.6.4"
+keycloakImage: "quay.io/keycloak/keycloak:26.6.4"
+
+operator:
+  resources:
+    requests:
+      cpu: 300m
+      memory: 450Mi
+    limits:
+      cpu: 700m
+      memory: 450Mi
+
+instances: 1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: 750m
+    memory: 1536Mi
+
+# Ingress for the Keycloak Service, routed through ingress-nginx + cloudflared
+# like every other devtool. TLS terminates at Cloudflare.
+ingress:
+  host: "" # rhbk.devopstashtiot.page — set per environment
+  className: nginx
+
+# Postgres — reuse the shared devtools-rds instance (see devtools-labs
+# terraform/live/devtools/rds). rdsAdmin credentials provision this chart's
+# own low-privilege role/database via an initContainer on the Keycloak pod
+# (spec.unsupported.podTemplate) — see templates/keycloak.yaml.
+rds:
+  host: "" # set per environment
+  port: 5432
+  database: rhbk
+
+rdsAdmin:
+  usernameSsmParameter: "" # set per environment
+  passwordSsmParameter: "" # set per environment
+
+# Low-privilege app role this chart's own initContainer creates on the shared
+# RDS instance — matches the bitbucket/confluence pattern (fixed lab-shared
+# credentials, not per-tool secrets).
+dbSecrets:
+  username: "rhbk_app"
+  password: "123456"
+
+# Keycloak's own bootstrap admin user — reuses the platform-wide shared
+# admin password convention (see devtools-provision/devtools/argocd).
+adminPasswordSsmParameter: "" # set per environment
+adminUsername: "admin"
+
+# Realm + LDAP user federation (Active Directory) + the ArgoCD OIDC client.
+# All environment-specific — the domain controller's address/DN/bind
+# credentials don't exist until devtools-labs' domain-controller unit is
+# applied.
+realm:
+  name: devtools
+
+ldap:
+  connectionUrl: "" # ldap://<domain-controller-private-ip>:389 — set per environment
+  usersDn: "" # OU=devops-tashtiot,DC=devtools,DC=local — set per environment
+  bindDn: "" # svc-devops-tashtiot@devtools.local — set per environment
+  bindCredential: "" # matches domain-controller's ldap_bind_password — set per environment
+
+argocdClient:
+  clientId: "argocd"
+  redirectUri: "" # https://argocd.devopstashtiot.page/auth/callback — set per environment
+  # Fixed shared secret (matches this lab's convention for shared
+  # credentials, e.g. domain-controller's ldap_bind_password/'123456'
+  # convention) baked into the KeycloakRealmImport CR — Keycloak's realm
+  # import JSON has no mechanism to pull a client secret from a Secret
+  # reference, so this can't be ExternalSecret-sourced on the RHBK side.
+  # ArgoCD's own consumption of this same value *is* ExternalSecret/SSM-backed
+  # — see devtools-provision/devtools/argocd/templates/oidc-secret.yaml.
+  secret: "" # set per environment
