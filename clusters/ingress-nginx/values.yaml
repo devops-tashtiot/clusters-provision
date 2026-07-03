@@ -6,6 +6,17 @@ ingress-nginx:
   controller:
     service:
       type: ClusterIP
+    config:
+      # cloudflared connects to this controller over plain HTTP (TLS terminates
+      # at Cloudflare), so by default nginx overwrites X-Forwarded-Proto with
+      # its own (http) connection scheme on every request, discarding
+      # Cloudflare's real https signal. Devtools behind ingress.https: true
+      # (Bitbucket, etc.) trust that per-request header for scheme detection —
+      # seeing http unconditionally breaks XSRF double-submit checks that
+      # compare it against the browser's Origin/Referer. Trusting forwarded
+      # headers here makes nginx pass through what it actually received
+      # instead of substituting its own scheme.
+      use-forwarded-headers: "true"
     resources:
       requests:
         cpu: 50m
