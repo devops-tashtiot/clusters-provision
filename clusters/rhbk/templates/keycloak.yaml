@@ -103,17 +103,29 @@ spec:
                   "CREATE ROLE \"$APP_DB_USER\" LOGIN PASSWORD '$APP_DB_PASSWORD';"
                 psql -h "$PGHOST" -p "$PGPORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 -c \
                   "ALTER ROLE \"$APP_DB_USER\" WITH PASSWORD '$APP_DB_PASSWORD';"
-                # Postgres 16+ requires the executing role to be able to SET ROLE to
-                # the target owner before CREATE DATABASE ... OWNER will succeed —
-                # role creators no longer get automatic membership in roles they create.
-                psql -h "$PGHOST" -p "$PGPORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 -c \
-                  "GRANT \"$APP_DB_USER\" TO \"$ADMIN_USER\";"
+                # Postgres 16+ requires the executing role to already be able to SET ROLE
+                # to a target before CREATE DATABASE ... OWNER (or GRANT role TO role) will
+                # succeed for it — CREATEROLE alone (what $ADMIN_USER, the RDS master user,
+                # has) no longer implies that, even for roles it just created itself. A
+                # GRANT "$APP_DB_USER" TO "$ADMIN_USER" run as $ADMIN_USER hits the exact
+                # same "must be able to SET ROLE" error for the same reason (verified
+                # against the live RDS instance: $ADMIN_USER has no pg_auth_members row for
+                # $APP_DB_USER at all) — so it doesn't help. Sidestep the whole ownership
+                # dance instead: leave the database owned by $ADMIN_USER (same pattern
+                # bitbucket/confluence use) and give $APP_DB_USER full privileges via GRANT,
+                # which only needs $ADMIN_USER to hold the privileges being granted, not SET
+                # ROLE membership.
                 psql -h "$PGHOST" -p "$PGPORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 -tAc \
                   "SELECT 1 FROM pg_database WHERE datname = '$APP_DB_NAME'" | grep -q 1 || \
                 psql -h "$PGHOST" -p "$PGPORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 -c \
-                  "CREATE DATABASE \"$APP_DB_NAME\" OWNER \"$APP_DB_USER\";"
+                  "CREATE DATABASE \"$APP_DB_NAME\";"
                 psql -h "$PGHOST" -p "$PGPORT" -U "$ADMIN_USER" -d postgres -v ON_ERROR_STOP=1 -c \
                   "GRANT ALL PRIVILEGES ON DATABASE \"$APP_DB_NAME\" TO \"$APP_DB_USER\";"
+                # PG15+ no longer grants CREATE on the public schema to PUBLIC by default,
+                # so Keycloak's own migrations (which run as $APP_DB_USER and create tables
+                # in the public schema) need it granted explicitly.
+                psql -h "$PGHOST" -p "$PGPORT" -U "$ADMIN_USER" -d "$APP_DB_NAME" -v ON_ERROR_STOP=1 -c \
+                  "GRANT ALL ON SCHEMA public TO \"$APP_DB_USER\";"
           - name: wait-for-domain-controller
             image: busybox:1.36
             env:
