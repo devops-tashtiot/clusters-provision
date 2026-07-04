@@ -1,44 +1,25 @@
 # Base values — ClusterIP only, no AWS load balancer needed.
-# cloudflared (see devtools/cloudflared) dials out to Cloudflare and forwards
-# traffic to this controller; it routes onward by Host header.
-
+# cloudflared (see devtools/cloudflared) dials out to Cloudflare and connects
+# to this controller over real HTTPS using a Cloudflare Origin Certificate
+# (see origin-cert-secret.yaml / clusters-definition's override for the SSM
+# paths + the default-ssl-certificate extraArg), routing onward by Host header.
+#
+# Earlier attempts fixed the scheme/port mismatch by trusting forwarded
+# headers (`use-forwarded-headers`) plus a `location-snippet` forcing
+# X-Forwarded-Port to 443. That approach never fully worked: nginx-ingress's
+# per-location `set $pass_port ...`/`proxy_set_header X-Forwarded-Port
+# $pass_port` pair always executes before any location-snippet content can
+# run (snippets are appended at the end of the location block), so nothing
+# injectable via ConfigMap could actually override what that unconditional
+# pair sends — confirmed with a raw echo-server backend across several
+# variants (duplicate proxy_set_header, re-`set`-ing the variable,
+# more_set_input_headers). The real fix is architectural: once cloudflared
+# genuinely connects over HTTPS on 443, nginx's own $scheme/$server_port are
+# correct natively for every devtool, with no per-location workaround needed.
 ingress-nginx:
   controller:
     service:
       type: ClusterIP
-    config:
-      # cloudflared connects to this controller over plain HTTP (TLS terminates
-      # at Cloudflare), so by default nginx overwrites X-Forwarded-Proto with
-      # its own (http) connection scheme on every request, discarding
-      # Cloudflare's real https signal. Devtools behind ingress.https: true
-      # (Bitbucket, etc.) trust that per-request header for scheme detection —
-      # seeing http unconditionally breaks XSRF double-submit checks that
-      # compare it against the browser's Origin/Referer. Trusting forwarded
-      # headers here makes nginx pass through what it actually received
-      # instead of substituting its own scheme.
-      use-forwarded-headers: "true"
-      # With use-forwarded-headers on, nginx's X-Forwarded-Port now comes from
-      # $pass_port, which falls back to nginx's own listening port (80, since
-      # cloudflared connects over plain HTTP) whenever there's no incoming
-      # X-Forwarded-Port to trust — Cloudflare doesn't send one. Devtools that
-      # honor forwarded headers (Bitbucket, RHBK/Keycloak, etc.) then build
-      # redirect/absolute URLs with :80 appended (non-standard for https),
-      # even though SERVER_PROXY_PORT=443 is configured, because the
-      # per-request header wins. Every request on this platform is actually
-      # reached via Cloudflare on 443, so force that unconditionally.
-      #
-      # This must override the *variable* ($pass_port), not add a second
-      # `proxy_set_header X-Forwarded-Port` line — confirmed live (via a raw
-      # echo-server backend) that two proxy_set_header directives for the
-      # same header name in one location block don't replace each other in
-      # this nginx-ingress version; nginx sends BOTH as a single comma-joined
-      # header ("X-Forwarded-Port: 80, 443"), and Keycloak (like most
-      # X-Forwarded-* consumers) takes the *first* value, so the backend
-      # still saw 80. Reassigning $pass_port itself means the one templated
-      # proxy_set_header line downstream picks up 443 with nothing to
-      # conflict with.
-      location-snippet: |
-        set $pass_port 443;
     resources:
       requests:
         cpu: 50m
@@ -46,3 +27,13 @@ ingress-nginx:
       limits:
         cpu: 200m
         memory: 256Mi
+
+# SSM Parameter Store paths (SecureString) holding the Cloudflare Origin
+# Certificate (wildcard *.devopstashtiot.page) used as this controller's
+# default TLS cert — see origin-cert-secret.yaml. Left empty here; set per
+# environment in clusters-definition (along with the matching
+# controller.extraArgs.default-ssl-certificate override), same pattern as
+# rhbk's ldap.*SsmParameter values.
+originCert:
+  crtSsmParameter: ""
+  keySsmParameter: ""

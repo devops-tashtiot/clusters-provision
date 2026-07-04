@@ -25,5 +25,18 @@ tunnelCredentialsSsmParameter: ""
 # cloudflared ingress rules. nginx-ingress (see devtools/ingress-nginx) does the
 # actual Host-header routing, so a single catch-all rule is normally enough —
 # add a new Kubernetes Ingress for each tool rather than editing this list.
+#
+# Connects over real HTTPS (ingress-nginx presents a Cloudflare Origin
+# Certificate on 443 — see clusters/ingress-nginx's origin-cert-secret.yaml)
+# rather than plain HTTP. Plain HTTP was the root cause of every devtool's
+# X-Forwarded-Port/Proto being wrong (nginx's $scheme/$server_port reflect
+# the real connection, which was always http/80 regardless of what Cloudflare
+# saw at the edge) — RHBK/Keycloak and Bitbucket both built :80 redirect URLs
+# because of it. originServerName is required because we connect to the
+# Service's cluster-DNS name, which the cert's SAN doesn't cover (it covers
+# *.devopstashtiot.page/devopstashtiot.page) — this only overrides the name
+# used for TLS validation, not where the connection actually goes.
 ingress:
-  - service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+  - service: https://ingress-nginx-controller.ingress-nginx.svc.cluster.local:443
+    originRequest:
+      originServerName: devopstashtiot.page
