@@ -21,15 +21,24 @@ ingress-nginx:
       # $pass_port, which falls back to nginx's own listening port (80, since
       # cloudflared connects over plain HTTP) whenever there's no incoming
       # X-Forwarded-Port to trust — Cloudflare doesn't send one. Devtools that
-      # honor forwarded headers (Bitbucket, etc.) then build redirect/absolute
-      # URLs with :80 appended (non-standard for https), even though
-      # SERVER_PROXY_PORT=443 is configured, because the per-request header
-      # wins. Every request on this platform is actually reached via
-      # Cloudflare on 443, so force that unconditionally at the location
-      # level (location-snippet directives override the templated
-      # proxy_set_header for the same header name within the same location).
+      # honor forwarded headers (Bitbucket, RHBK/Keycloak, etc.) then build
+      # redirect/absolute URLs with :80 appended (non-standard for https),
+      # even though SERVER_PROXY_PORT=443 is configured, because the
+      # per-request header wins. Every request on this platform is actually
+      # reached via Cloudflare on 443, so force that unconditionally.
+      #
+      # This must override the *variable* ($pass_port), not add a second
+      # `proxy_set_header X-Forwarded-Port` line — confirmed live (via a raw
+      # echo-server backend) that two proxy_set_header directives for the
+      # same header name in one location block don't replace each other in
+      # this nginx-ingress version; nginx sends BOTH as a single comma-joined
+      # header ("X-Forwarded-Port: 80, 443"), and Keycloak (like most
+      # X-Forwarded-* consumers) takes the *first* value, so the backend
+      # still saw 80. Reassigning $pass_port itself means the one templated
+      # proxy_set_header line downstream picks up 443 with nothing to
+      # conflict with.
       location-snippet: |
-        proxy_set_header X-Forwarded-Port 443;
+        set $pass_port 443;
     resources:
       requests:
         cpu: 50m
