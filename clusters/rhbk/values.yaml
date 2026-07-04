@@ -100,3 +100,9 @@ argocdClient:
   # ExternalSecret. See secretSsmParameter below (set per environment) and
   # that Job template's header comment for the full flow.
   secretSsmParameter: "" # set per environment
+
+sonarqubeClient:
+  clientId: "sonarqube"
+  redirectUri: "" # https://sonarqube.devopstashtiot.page/oauth2/callback/oidc — set per environment
+  # Same reasoning as argocdClient.secretSsmParameter above.
+  secretSsmParameter: "" # set per environment
