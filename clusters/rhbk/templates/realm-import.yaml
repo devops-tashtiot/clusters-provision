@@ -46,6 +46,29 @@ spec:
           pagination: "true"
           connectionPooling: "true"
 
+    # Optional (not default) client scope carrying AD group membership as a
+    # "groups" claim — populated by the group-ldap-mapper
+    # templates/set-ldap-credentials-job.yaml adds to the LDAP federation
+    # provider. Optional rather than default so it doesn't touch Keycloak's
+    # built-in default-scope set for every client; each client below opts in
+    # via optionalClientScopes, and the OIDC client (ArgoCD's oidc.config,
+    # SonarQube's sonar.auth.oidc.scopes) must actually request "groups" for
+    # it to appear in the issued token.
+    clientScopes:
+      - name: "groups"
+        protocol: "openid-connect"
+        description: "AD group membership, for RBAC/admin-group mapping in downstream apps"
+        protocolMappers:
+          - name: "groups"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            config:
+              "claim.name": "groups"
+              "full.path": "false"
+              "id.token.claim": "true"
+              "access.token.claim": "true"
+              "userinfo.token.claim": "true"
+
     clients:
       - clientId: {{ .Values.argocdClient.clientId | quote }}
         name: "ArgoCD"
@@ -58,6 +81,23 @@ spec:
           - {{ .Values.argocdClient.redirectUri | quote }}
         webOrigins:
           - "+"
+        optionalClientScopes:
+          - "groups"
         # No secret here deliberately — Keycloak assigns a random one on
         # creation, then set-client-secret-job.yaml overwrites it with the
         # real value via the Admin API. See that template's header comment.
+      - clientId: {{ .Values.sonarqubeClient.clientId | quote }}
+        name: "SonarQube"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.sonarqubeClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        optionalClientScopes:
+          - "groups"
+        # No secret here deliberately — same reasoning as ArgoCD's client
+        # above; set-sonarqube-client-secret-job.yaml sets the real value.
