@@ -84,13 +84,15 @@ spec:
               # locally instead; relying on -q here silently grabbed
               # whichever scope happened to be last in the unfiltered
               # response (e.g. "profile") and associated THAT with argocd/
-              # sonarqube instead of "groups".
-              GROUPS_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" --fields id,name --format csv --noquotes 2>/dev/null | awk -F, '$2=="groups"{print $1}' | tail -1 || true)
+              # sonarqube instead of "groups". grep+cut, not awk: the
+              # keycloak image doesn't have awk installed (confirmed live:
+              # "awk: command not found"), only coreutils/grep.
+              GROUPS_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" --fields id,name --format csv --noquotes 2>/dev/null | grep ",groups$" | cut -d, -f1 | tail -1 || true)
               if [ -z "$GROUPS_SCOPE_ID" ]; then
                 "$KCADM" create client-scopes -r "$REALM" \
                   -s name=groups -s protocol=openid-connect \
                   -s 'attributes."include.in.token.scope"=true'
-                GROUPS_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" --fields id,name --format csv --noquotes | awk -F, '$2=="groups"{print $1}' | tail -1)
+                GROUPS_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" --fields id,name --format csv --noquotes | grep ",groups$" | cut -d, -f1 | tail -1)
                 "$KCADM" create "client-scopes/$GROUPS_SCOPE_ID/protocol-mappers/models" -r "$REALM" \
                   -s name=groups -s protocol=openid-connect -s protocolMapper=oidc-group-membership-mapper \
                   -s 'config."claim.name"=groups' \
