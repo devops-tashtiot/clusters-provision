@@ -1,0 +1,125 @@
+# Creates the "groups" client scope + protocol mapper, the "sonarqube"
+# client, and the "groups" optional-client-scope association on the argocd
+# and sonarqube clients — all via the Keycloak Admin REST API, idempotently.
+#
+# realm-import.yaml ALSO declares these (clientScopes, the sonarqube client,
+# optionalClientScopes on both clients), but that only takes effect on a
+# genuinely fresh realm. Keycloak's KeycloakRealmImport does a one-shot
+# `--import-realm` file import; its own log output on an already-bootstrapped
+# realm is literally "Realm 'devtools' already exists. Import skipped" — it
+# never re-applies changes to an existing realm's clients/scopes, no matter
+# what the CR spec says (confirmed live: after adding the sonarqube client to
+# realm-import.yaml and re-triggering the import Job, the client still
+# didn't exist). So this Job is what actually keeps these in sync going
+# forward, the same reason set-ldap-credentials-job.yaml/
+# set-client-secret-job.yaml exist instead of relying on the CR alone.
+# realm-import.yaml's declarations stay too, since they DO work for a
+# from-scratch bootstrap (e.g. after a full teardown/recreate).
+#
+# hook-weight -1 so this runs before set-client-secret-job.yaml/
+# set-sonarqube-client-secret-job.yaml (default weight 0) — both wait-loop
+# for their client to exist, but there's no reason to make them burn through
+# retries when this can just run first.
+{{- if .Values.sonarqubeClient.clientId }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rhbk-provision-oidc-clients
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 20
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: provision-oidc-clients
+          image: {{ .Values.keycloakImage | quote }}
+          env:
+            - name: KC_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rhbk-admin
+                  key: username
+            - name: KC_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rhbk-admin
+                  key: password
+            - name: REALM
+              value: {{ .Values.realm.name | quote }}
+            - name: ARGOCD_CLIENT_ID
+              value: {{ .Values.argocdClient.clientId | quote }}
+            - name: SONARQUBE_CLIENT_ID
+              value: {{ .Values.sonarqubeClient.clientId | quote }}
+            - name: SONARQUBE_REDIRECT_URI
+              value: {{ .Values.sonarqubeClient.redirectUri | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              KCADM=/opt/keycloak/bin/kcadm.sh
+              SERVER="http://rhbk-service:8080"
+
+              echo "Waiting for realm '$REALM' to exist..."
+              for i in $(seq 1 60); do
+                if "$KCADM" config credentials --server "$SERVER" --realm master \
+                     --user "$KC_ADMIN_USER" --password "$KC_ADMIN_PASSWORD" >/dev/null 2>&1; then
+                  "$KCADM" get "realms/$REALM" >/dev/null 2>&1 && break
+                fi
+                echo "  not ready yet, retrying in 5s"
+                sleep 5
+              done
+
+              echo "Ensuring 'groups' client scope exists..."
+              GROUPS_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" -q name=groups --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$GROUPS_SCOPE_ID" ]; then
+                "$KCADM" create client-scopes -r "$REALM" \
+                  -s name=groups -s protocol=openid-connect \
+                  -s 'attributes."include.in.token.scope"=true'
+                GROUPS_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" -q name=groups --fields id --format csv --noquotes | tail -1)
+                "$KCADM" create "client-scopes/$GROUPS_SCOPE_ID/protocol-mappers/models" -r "$REALM" \
+                  -s name=groups -s protocol=openid-connect -s protocolMapper=oidc-group-membership-mapper \
+                  -s 'config."claim.name"=groups' \
+                  -s 'config."full.path"=false' \
+                  -s 'config."id.token.claim"=true' \
+                  -s 'config."access.token.claim"=true' \
+                  -s 'config."userinfo.token.claim"=true'
+                echo "  created."
+              else
+                echo "  already exists ($GROUPS_SCOPE_ID)."
+              fi
+
+              echo "Ensuring '$SONARQUBE_CLIENT_ID' client exists..."
+              SONARQUBE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$SONARQUBE_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$SONARQUBE_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$SONARQUBE_CLIENT_ID" -s name=SonarQube -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+                  -s 'redirectUris=["'"$SONARQUBE_REDIRECT_URI"'"]' \
+                  -s 'webOrigins=["+"]'
+                SONARQUBE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$SONARQUBE_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($SONARQUBE_UUID)."
+              else
+                echo "  already exists ($SONARQUBE_UUID)."
+              fi
+
+              echo "Ensuring 'groups' is an optional client scope on '$ARGOCD_CLIENT_ID' and '$SONARQUBE_CLIENT_ID'..."
+              for CLIENT_ID_VAR in "$ARGOCD_CLIENT_ID" "$SONARQUBE_CLIENT_ID"; do
+                CLIENT_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CLIENT_ID_VAR" --fields id --format csv --noquotes | tail -1)
+                ALREADY_ASSOCIATED=$("$KCADM" get "clients/$CLIENT_UUID/optional-client-scopes" -r "$REALM" \
+                  --fields name --format csv --noquotes 2>/dev/null | grep -c '^groups$' || true)
+                if [ "$ALREADY_ASSOCIATED" = "0" ]; then
+                  "$KCADM" update "clients/$CLIENT_UUID/optional-client-scopes/$GROUPS_SCOPE_ID" -r "$REALM" -b '{}'
+                  echo "  associated groups scope with $CLIENT_ID_VAR."
+                else
+                  echo "  $CLIENT_ID_VAR already has groups scope."
+                fi
+              done
+              echo "Done."
+{{- end }}
