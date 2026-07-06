@@ -1,25 +1,29 @@
-# Creates the "groups" client scope + protocol mapper, the "sonarqube"
-# client, and the "groups" optional-client-scope association on the argocd
-# and sonarqube clients — all via the Keycloak Admin REST API, idempotently.
+# Creates the "groups" client scope + protocol mapper, the "sonarqube"/
+# "jira"/"confluence"/"bitbucket" clients, and the "groups"
+# optional-client-scope association on the argocd and sonarqube clients only
+# — all via the Keycloak Admin REST API, idempotently. Jira/Confluence/
+# Bitbucket deliberately do NOT get the groups scope association: those apps
+# use their own LDAP user directory for authorization, not a Keycloak
+# group-membership claim (see jiraClient's comment in values.yaml).
 #
-# realm-import.yaml ALSO declares these (clientScopes, the sonarqube client,
-# optionalClientScopes on both clients), but that only takes effect on a
-# genuinely fresh realm. Keycloak's KeycloakRealmImport does a one-shot
-# `--import-realm` file import; its own log output on an already-bootstrapped
-# realm is literally "Realm 'devtools' already exists. Import skipped" — it
-# never re-applies changes to an existing realm's clients/scopes, no matter
-# what the CR spec says (confirmed live: after adding the sonarqube client to
-# realm-import.yaml and re-triggering the import Job, the client still
-# didn't exist). So this Job is what actually keeps these in sync going
-# forward, the same reason set-ldap-credentials-job.yaml/
-# set-client-secret-job.yaml exist instead of relying on the CR alone.
-# realm-import.yaml's declarations stay too, since they DO work for a
-# from-scratch bootstrap (e.g. after a full teardown/recreate).
+# realm-import.yaml ALSO declares these (clientScopes, the sonarqube/jira/
+# confluence/bitbucket clients, optionalClientScopes on argocd/sonarqube),
+# but that only takes effect on a genuinely fresh realm. Keycloak's
+# KeycloakRealmImport does a one-shot `--import-realm` file import; its own
+# log output on an already-bootstrapped realm is literally "Realm 'devtools'
+# already exists. Import skipped" — it never re-applies changes to an
+# existing realm's clients/scopes, no matter what the CR spec says (confirmed
+# live: after adding the sonarqube client to realm-import.yaml and
+# re-triggering the import Job, the client still didn't exist). So this Job
+# is what actually keeps these in sync going forward, the same reason
+# set-ldap-credentials-job.yaml/set-client-secret-job.yaml exist instead of
+# relying on the CR alone. realm-import.yaml's declarations stay too, since
+# they DO work for a from-scratch bootstrap (e.g. after a full
+# teardown/recreate).
 #
-# hook-weight -1 so this runs before set-client-secret-job.yaml/
-# set-sonarqube-client-secret-job.yaml (default weight 0) — both wait-loop
-# for their client to exist, but there's no reason to make them burn through
-# retries when this can just run first.
+# hook-weight -1 so this runs before set-client-secrets-job.yaml (default
+# weight 0) — that Job wait-loops for each client to exist, but there's no
+# reason to make it burn through retries when this can just run first.
 {{- if .Values.sonarqubeClient.clientId }}
 apiVersion: batch/v1
 kind: Job
@@ -57,6 +61,18 @@ spec:
               value: {{ .Values.sonarqubeClient.clientId | quote }}
             - name: SONARQUBE_REDIRECT_URI
               value: {{ .Values.sonarqubeClient.redirectUri | quote }}
+            - name: JIRA_CLIENT_ID
+              value: {{ .Values.jiraClient.clientId | quote }}
+            - name: JIRA_REDIRECT_URI
+              value: {{ .Values.jiraClient.redirectUri | quote }}
+            - name: CONFLUENCE_CLIENT_ID
+              value: {{ .Values.confluenceClient.clientId | quote }}
+            - name: CONFLUENCE_REDIRECT_URI
+              value: {{ .Values.confluenceClient.redirectUri | quote }}
+            - name: BITBUCKET_CLIENT_ID
+              value: {{ .Values.bitbucketClient.clientId | quote }}
+            - name: BITBUCKET_REDIRECT_URI
+              value: {{ .Values.bitbucketClient.redirectUri | quote }}
           command:
             - /bin/bash
             - -c
@@ -120,6 +136,54 @@ spec:
                 echo "  already exists ($SONARQUBE_UUID)."
               fi
 
+              echo "Ensuring '$JIRA_CLIENT_ID' client exists..."
+              JIRA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$JIRA_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$JIRA_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$JIRA_CLIENT_ID" -s name=Jira -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+                  -s 'redirectUris=["'"$JIRA_REDIRECT_URI"'"]' \
+                  -s 'webOrigins=["+"]'
+                JIRA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$JIRA_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($JIRA_UUID)."
+              else
+                echo "  already exists ($JIRA_UUID)."
+              fi
+
+              echo "Ensuring '$CONFLUENCE_CLIENT_ID' client exists..."
+              CONFLUENCE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CONFLUENCE_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$CONFLUENCE_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$CONFLUENCE_CLIENT_ID" -s name=Confluence -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+                  -s 'redirectUris=["'"$CONFLUENCE_REDIRECT_URI"'"]' \
+                  -s 'webOrigins=["+"]'
+                CONFLUENCE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CONFLUENCE_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($CONFLUENCE_UUID)."
+              else
+                echo "  already exists ($CONFLUENCE_UUID)."
+              fi
+
+              echo "Ensuring '$BITBUCKET_CLIENT_ID' client exists..."
+              BITBUCKET_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$BITBUCKET_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$BITBUCKET_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$BITBUCKET_CLIENT_ID" -s name=Bitbucket -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+                  -s 'redirectUris=["'"$BITBUCKET_REDIRECT_URI"'"]' \
+                  -s 'webOrigins=["+"]'
+                BITBUCKET_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$BITBUCKET_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($BITBUCKET_UUID)."
+              else
+                echo "  already exists ($BITBUCKET_UUID)."
+              fi
+
+              # Jira/Confluence/Bitbucket are intentionally excluded from the
+              # groups-scope association loop below — those apps authorize
+              # via their own LDAP user directory, not a Keycloak groups claim.
               echo "Ensuring 'groups' is an optional client scope on '$ARGOCD_CLIENT_ID' and '$SONARQUBE_CLIENT_ID'..."
               for CLIENT_ID_VAR in "$ARGOCD_CLIENT_ID" "$SONARQUBE_CLIENT_ID"; do
                 CLIENT_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CLIENT_ID_VAR" --fields id --format csv --noquotes | tail -1)

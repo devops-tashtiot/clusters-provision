@@ -84,8 +84,9 @@ spec:
         optionalClientScopes:
           - "groups"
         # No secret here deliberately — Keycloak assigns a random one on
-        # creation, then set-client-secret-job.yaml overwrites it with the
-        # real value via the Admin API. See that template's header comment.
+        # creation, then set-client-secrets-job.yaml overwrites it with the
+        # shared real value via the Admin API. See that template's header
+        # comment.
       - clientId: {{ .Values.sonarqubeClient.clientId | quote }}
         name: "SonarQube"
         enabled: true
@@ -100,4 +101,49 @@ spec:
         optionalClientScopes:
           - "groups"
         # No secret here deliberately — same reasoning as ArgoCD's client
-        # above; set-sonarqube-client-secret-job.yaml sets the real value.
+        # above; set-client-secrets-job.yaml sets the shared real value.
+      - clientId: {{ .Values.jiraClient.clientId | quote }}
+        name: "Jira"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.jiraClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        # No "groups" optionalClientScope — Jira uses its own LDAP user
+        # directory for authorization, not Keycloak group-membership claims.
+        # No secret here deliberately — same reasoning as ArgoCD's client
+        # above; set-client-secrets-job.yaml sets the shared real value.
+      - clientId: {{ .Values.confluenceClient.clientId | quote }}
+        name: "Confluence"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.confluenceClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        # No "groups" optionalClientScope — same reasoning as Jira's client
+        # above.
+        # No secret here deliberately — same reasoning as ArgoCD's client
+        # above; set-client-secrets-job.yaml sets the shared real value.
+      - clientId: {{ .Values.bitbucketClient.clientId | quote }}
+        name: "Bitbucket"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.bitbucketClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        # No "groups" optionalClientScope — same reasoning as Jira's client
+        # above.
+        # No secret here deliberately — same reasoning as ArgoCD's client
+        # above; set-client-secrets-job.yaml sets the shared real value.

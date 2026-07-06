@@ -95,14 +95,41 @@ argocdClient:
   # it deliberately, since Keycloak's realm-import JSON has no mechanism to
   # pull a client secret from a Secret reference and this value must never be
   # committed to git in plaintext. Keycloak assigns a random secret to the
-  # client on creation; templates/set-client-secret-job.yaml then overwrites
+  # client on creation; templates/set-client-secrets-job.yaml then overwrites
   # it via the Admin REST API with the real value pulled from SSM by
-  # ExternalSecret. See secretSsmParameter below (set per environment) and
-  # that Job template's header comment for the full flow.
-  secretSsmParameter: "" # set per environment
+  # ExternalSecret. See sharedClientSecretSsmParameter below (set per
+  # environment) and that Job template's header comment for the full flow.
 
 sonarqubeClient:
   clientId: "sonarqube"
   redirectUri: "" # https://sonarqube.devopstashtiot.page/oauth2/callback/oidc — set per environment
-  # Same reasoning as argocdClient.secretSsmParameter above.
-  secretSsmParameter: "" # set per environment
+
+# Jira/Confluence/Bitbucket clients — unlike argocdClient/sonarqubeClient's
+# "groups" optionalClientScope, these deliberately get none: each of these
+# three apps will be configured with its own LDAP user directory (against
+# the same AD the ldap/ldapBind values above point at) for authorization/
+# group membership, so there's no need for Keycloak to also carry group
+# membership as a token claim for them. The client itself exists purely for
+# OIDC login.
+jiraClient:
+  clientId: "jira"
+  redirectUri: "" # https://jira.devopstashtiot.page/plugins/servlet/oauth/callback — set per environment
+
+confluenceClient:
+  clientId: "confluence"
+  redirectUri: "" # https://confluence.devopstashtiot.page/plugins/servlet/oauth/callback — set per environment
+
+bitbucketClient:
+  clientId: "bitbucket"
+  redirectUri: "" # https://bitbucket.devopstashtiot.page/plugins/servlet/oauth/callback — set per environment
+
+# One shared OIDC client secret for ALL FIVE clients above (argocd,
+# sonarqube, jira, confluence, bitbucket) — a single SSM parameter and a
+# single Job (templates/set-client-secrets-job.yaml) that sets the same
+# value on every client via the Admin REST API, rather than a distinct
+# secretSsmParameter + ExternalSecret + Job per client. Each app's own Helm
+# chart (devtools-provision/devtools/<tool>) reads this exact same SSM
+# parameter to configure its side of the OIDC client — one source of truth,
+# no manual sync needed, same convention as adminPasswordSsmParameter/
+# dbSecrets already being shared platform-wide.
+sharedClientSecretSsmParameter: "/devtools/rhbk/oidc-client-secret"
