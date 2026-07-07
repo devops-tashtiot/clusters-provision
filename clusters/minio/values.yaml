@@ -1,12 +1,23 @@
-# Base values — same across every environment. Credentials (rootUser/
-# rootPassword) and any host-specific overrides live in
-# clusters-definition/clusters/minio/values.yaml instead.
+# Base values — same across every environment. The admin SSM parameter
+# path (env-specific) lives in clusters-definition/clusters/minio/values.yaml
+# instead.
+
+# Admin console login (rootUser/rootPassword via templates/admin-secret.yaml
+# -> minio.existingSecret below). Username is plain; password is the
+# platform-wide shared admin-password SSM parameter — same convention as
+# every other devtool/cluster-infra tool, never a per-tool credential.
+adminUsername: "admin"
+adminPasswordSsmParameter: "" # set in clusters-definition
 
 minio:
   # Single-node cluster — distributed mode's default 16 replicas (multi-node
   # multi-drive) makes no sense on this platform's one minikube instance.
   mode: standalone
   replicas: 1
+
+  # See templates/admin-secret.yaml — rootUser/rootPassword come from that
+  # Secret instead of the chart auto-generating its own.
+  existingSecret: "minio-admin"
 
   resources:
     requests:
