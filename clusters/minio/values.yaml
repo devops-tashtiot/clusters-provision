@@ -2,12 +2,16 @@
 # path (env-specific) lives in clusters-definition/clusters/minio/values.yaml
 # instead.
 
-# Admin console login (rootUser/rootPassword via templates/admin-secret.yaml
-# -> minio.existingSecret below). Username is plain; password is the
-# platform-wide shared admin-password SSM parameter — same convention as
-# every other devtool/cluster-infra tool, never a per-tool credential.
-adminUsername: "admin"
-adminPasswordSsmParameter: "" # set in clusters-definition
+# Values consumed only by this umbrella chart's own templates/ (not passed to
+# the minio subchart) — kept under "wrapper" so they never collide with the
+# minio subchart's own top-level key below.
+wrapper:
+  # Admin console login (rootUser/rootPassword via templates/admin-secret.yaml
+  # -> minio.existingSecret below). Username is plain; password is the
+  # platform-wide shared admin-password SSM parameter — same convention as
+  # every other devtool/cluster-infra tool, never a per-tool credential.
+  adminUsername: "admin"
+  adminPasswordSsmParameter: "" # set in clusters-definition
 
 minio:
   # Single-node cluster — distributed mode's default 16 replicas (multi-node

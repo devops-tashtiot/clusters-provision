@@ -28,12 +28,16 @@ ingress-nginx:
         cpu: 200m
         memory: 256Mi
 
-# SSM Parameter Store paths (SecureString) holding the Cloudflare Origin
-# Certificate (wildcard *.devopstashtiot.page) used as this controller's
-# default TLS cert — see origin-cert-secret.yaml. Left empty here; set per
-# environment in clusters-definition (along with the matching
-# controller.extraArgs.default-ssl-certificate override), same pattern as
-# rhbk's ldap.*SsmParameter values.
-originCert:
-  crtSsmParameter: ""
-  keySsmParameter: ""
+# Values consumed only by this umbrella chart's own templates/ (not passed to
+# the ingress-nginx subchart) — kept under "wrapper" so they never collide
+# with the ingress-nginx subchart's own top-level key above.
+wrapper:
+  # SSM Parameter Store paths (SecureString) holding the Cloudflare Origin
+  # Certificate (wildcard *.devopstashtiot.page) used as this controller's
+  # default TLS cert — see origin-cert-secret.yaml. Left empty here; set per
+  # environment in clusters-definition (along with the matching
+  # controller.extraArgs.default-ssl-certificate override), same pattern as
+  # rhbk's ldap.*SsmParameter values.
+  originCert:
+    crtSsmParameter: ""
+    keySsmParameter: ""

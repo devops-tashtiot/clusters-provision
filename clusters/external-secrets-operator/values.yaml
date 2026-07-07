@@ -34,10 +34,15 @@ external-secrets:
         cpu: 100m
         memory: 64Mi
 
+# Values consumed only by this umbrella chart's own templates/ (not passed to
+# the external-secrets subchart) — kept under "wrapper" so they never collide
+# with the external-secrets subchart's own top-level key above.
+#
 # Rendered by this umbrella chart's own templates/ (not the subchart) —
 # gives every namespace a shared AWS Parameter Store backend with no
 # static credentials: ESO's pod picks up the minikube EC2 instance's IAM
 # role via IMDS (the instance's http_put_response_hop_limit=2 setting
 # exists specifically so a containerized process can reach it).
-awsParameterStore:
-  region: "" # set in devtools-definition
+wrapper:
+  awsParameterStore:
+    region: "" # set in clusters-definition
