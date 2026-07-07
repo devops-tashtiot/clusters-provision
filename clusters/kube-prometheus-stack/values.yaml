@@ -1,0 +1,73 @@
+# Base values — env-invariant defaults. Ingress host, storage class, and the
+# admin password SSM path are set in clusters-definition.
+#
+# Brings Prometheus + kube-state-metrics + node-exporter + Grafana onto the
+# cluster so Grafana actually has metrics to show (this cluster previously
+# had no metrics-server or Prometheus at all — `kubectl top` failed with
+# "Metrics API not available"). Alertmanager is disabled: nothing on this
+# platform sends alert notifications (no Slack/email/webhook configured), so
+# running it would just be inert overhead.
+kube-prometheus-stack:
+  alertmanager:
+    enabled: false
+
+  kubeStateMetrics:
+    enabled: true
+  nodeExporter:
+    enabled: true
+
+  prometheus:
+    prometheusSpec:
+      # Single-node local-disk cluster — keep retention and storage modest.
+      retention: 7d
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: gp2
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+
+  grafana:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+    persistence:
+      enabled: true
+      storageClassName: gp2
+      size: 2Gi
+
+    # Reuses this platform's shared admin password Secret (see
+    # templates/grafana-admin-secret.yaml) instead of the chart's own
+    # randomly-generated one — same convention as every devtool's admin
+    # login on this platform.
+    admin:
+      existingSecret: "grafana-admin"
+      userKey: admin-user
+      passwordKey: admin-password
+
+    ingress:
+      enabled: true
+      ingressClassName: nginx
+      annotations:
+        nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      # hosts set in clusters-definition
+
+# SSM Parameter Store path (SecureString) holding the shared admin password
+# (same /devtools/admin/password used by every devtool on this platform) —
+# patched into the grafana-admin Secret via an ExternalSecret. Requires the
+# external-secrets-operator cluster-infra tool. Set in clusters-definition.
+grafanaAdminPasswordSsmParameter: ""

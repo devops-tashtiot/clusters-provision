@@ -1,0 +1,10 @@
+apiVersion: v2
+name: kube-prometheus-stack
+description: kube-prometheus-stack umbrella chart for devtools — Prometheus + Alertmanager + Grafana + kube-state-metrics + node-exporter
+type: application
+version: 1.0.0
+appVersion: "v0.92.1"
+dependencies:
+  - name: kube-prometheus-stack
+    version: 87.10.1
+    repository: "file://./charts/kube-prometheus-stack"
