@@ -65,9 +65,26 @@ kube-prometheus-stack:
       annotations:
         nginx.ingress.kubernetes.io/ssl-redirect: "false"
       # hosts set in clusters-definition
+      #
+      # auth.generic_oauth (RHBK SSO) is entirely environment-specific — see
+      # clusters-definition/clusters/kube-prometheus-stack/values.yaml's
+      # grafana.ini + envValueFrom, same split as ArgoCD's oidc.config. Left
+      # out here so a bare-provision deploy never references the
+      # grafana-oidc-client-secret Secret before it exists (that Secret's
+      # own ExternalSecret, in templates/grafana-oidc-secret.yaml, is
+      # conditional on grafanaOidcClientSecretSsmParameter being set below).
 
 # SSM Parameter Store path (SecureString) holding the shared admin password
 # (same /devtools/admin/password used by every devtool on this platform) —
 # patched into the grafana-admin Secret via an ExternalSecret. Requires the
 # external-secrets-operator cluster-infra tool. Set in clusters-definition.
 grafanaAdminPasswordSsmParameter: ""
+
+# SSM Parameter Store path (SecureString) holding the RHBK-issued shared OIDC
+# client secret (same value as argocd/sonarqube/jira/confluence/bitbucket —
+# see clusters-provision/clusters/rhbk/values.yaml's
+# sharedClientSecretSsmParameter) — synced into the grafana-oidc-client-secret
+# Secret's client-secret key by templates/grafana-oidc-secret.yaml via an
+# ExternalSecret. Requires both external-secrets-operator and rhbk. Set in
+# clusters-definition.
+grafanaOidcClientSecretSsmParameter: ""

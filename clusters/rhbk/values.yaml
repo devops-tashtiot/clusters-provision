@@ -104,6 +104,16 @@ sonarqubeClient:
   clientId: "sonarqube"
   redirectUri: "" # https://sonarqube.devopstashtiot.page/oauth2/callback/oidc — set per environment
 
+# Grafana (kube-prometheus-stack cluster-infra tool) — gets the "groups"
+# optionalClientScope like argocd/sonarqube, since Grafana's own
+# auth.generic_oauth role_attribute_path (set in
+# clusters-definition/clusters/kube-prometheus-stack/values.yaml) maps the
+# devops-tashtiot AD group (and the svc-devops-tashtiot user specifically) to
+# the Admin org role.
+grafanaClient:
+  clientId: "grafana"
+  redirectUri: "" # https://grafana.devopstashtiot.page/login/generic_oauth — set per environment
+
 # Jira/Confluence/Bitbucket clients — unlike argocdClient/sonarqubeClient's
 # "groups" optionalClientScope, these deliberately get none: each of these
 # three apps will be configured with its own LDAP user directory (against
@@ -123,8 +133,8 @@ bitbucketClient:
   clientId: "bitbucket"
   redirectUri: "" # https://bitbucket.devopstashtiot.page/plugins/servlet/oauth/callback — set per environment
 
-# One shared OIDC client secret for ALL FIVE clients above (argocd,
-# sonarqube, jira, confluence, bitbucket) — a single SSM parameter and a
+# One shared OIDC client secret for ALL SIX clients above (argocd,
+# sonarqube, grafana, jira, confluence, bitbucket) — a single SSM parameter and a
 # single Job (templates/set-client-secrets-job.yaml) that sets the same
 # value on every client via the Admin REST API, rather than a distinct
 # secretSsmParameter + ExternalSecret + Job per client. Each app's own Helm

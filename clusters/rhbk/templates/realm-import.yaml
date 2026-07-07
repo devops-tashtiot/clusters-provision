@@ -102,6 +102,21 @@ spec:
           - "groups"
         # No secret here deliberately — same reasoning as ArgoCD's client
         # above; set-client-secrets-job.yaml sets the shared real value.
+      - clientId: {{ .Values.grafanaClient.clientId | quote }}
+        name: "Grafana"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.grafanaClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        optionalClientScopes:
+          - "groups"
+        # No secret here deliberately — same reasoning as ArgoCD's client
+        # above; set-client-secrets-job.yaml sets the shared real value.
       - clientId: {{ .Values.jiraClient.clientId | quote }}
         name: "Jira"
         enabled: true
