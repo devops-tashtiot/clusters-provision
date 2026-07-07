@@ -1,0 +1,10 @@
+apiVersion: v2
+name: minio
+description: MinIO (S3-compatible object storage) umbrella chart for devtools — public buckets devops-api uploads/fetches Confluence plugin JARs, space-export archives, and Xray offline vulnerability updates from
+type: application
+version: 1.0.0
+appVersion: "RELEASE.2024-12-18T13-15-44Z"
+dependencies:
+  - name: minio
+    version: 5.4.0
+    repository: "file://./charts/minio"
