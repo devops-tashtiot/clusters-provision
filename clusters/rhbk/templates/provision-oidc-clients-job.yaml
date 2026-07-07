@@ -1,7 +1,7 @@
 # Creates the "groups" client scope + protocol mapper, the "sonarqube"/
-# "jira"/"confluence"/"bitbucket" clients, and the "groups"
-# optional-client-scope association on the argocd and sonarqube clients only
-# — all via the Keycloak Admin REST API, idempotently. Jira/Confluence/
+# "grafana"/"jira"/"confluence"/"bitbucket" clients, and the "groups"
+# optional-client-scope association on the argocd/sonarqube/grafana clients
+# only — all via the Keycloak Admin REST API, idempotently. Jira/Confluence/
 # Bitbucket deliberately do NOT get the groups scope association: those apps
 # use their own LDAP user directory for authorization, not a Keycloak
 # group-membership claim (see jiraClient's comment in values.yaml).
@@ -61,6 +61,10 @@ spec:
               value: {{ .Values.sonarqubeClient.clientId | quote }}
             - name: SONARQUBE_REDIRECT_URI
               value: {{ .Values.sonarqubeClient.redirectUri | quote }}
+            - name: GRAFANA_CLIENT_ID
+              value: {{ .Values.grafanaClient.clientId | quote }}
+            - name: GRAFANA_REDIRECT_URI
+              value: {{ .Values.grafanaClient.redirectUri | quote }}
             - name: JIRA_CLIENT_ID
               value: {{ .Values.jiraClient.clientId | quote }}
             - name: JIRA_REDIRECT_URI
@@ -136,6 +140,21 @@ spec:
                 echo "  already exists ($SONARQUBE_UUID)."
               fi
 
+              echo "Ensuring '$GRAFANA_CLIENT_ID' client exists..."
+              GRAFANA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$GRAFANA_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$GRAFANA_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$GRAFANA_CLIENT_ID" -s name=Grafana -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+                  -s 'redirectUris=["'"$GRAFANA_REDIRECT_URI"'"]' \
+                  -s 'webOrigins=["+"]'
+                GRAFANA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$GRAFANA_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($GRAFANA_UUID)."
+              else
+                echo "  already exists ($GRAFANA_UUID)."
+              fi
+
               echo "Ensuring '$JIRA_CLIENT_ID' client exists..."
               JIRA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$JIRA_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
               if [ -z "$JIRA_UUID" ]; then
@@ -184,8 +203,8 @@ spec:
               # Jira/Confluence/Bitbucket are intentionally excluded from the
               # groups-scope association loop below — those apps authorize
               # via their own LDAP user directory, not a Keycloak groups claim.
-              echo "Ensuring 'groups' is an optional client scope on '$ARGOCD_CLIENT_ID' and '$SONARQUBE_CLIENT_ID'..."
-              for CLIENT_ID_VAR in "$ARGOCD_CLIENT_ID" "$SONARQUBE_CLIENT_ID"; do
+              echo "Ensuring 'groups' is an optional client scope on '$ARGOCD_CLIENT_ID', '$SONARQUBE_CLIENT_ID' and '$GRAFANA_CLIENT_ID'..."
+              for CLIENT_ID_VAR in "$ARGOCD_CLIENT_ID" "$SONARQUBE_CLIENT_ID" "$GRAFANA_CLIENT_ID"; do
                 CLIENT_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CLIENT_ID_VAR" --fields id --format csv --noquotes | tail -1)
                 ALREADY_ASSOCIATED=$("$KCADM" get "clients/$CLIENT_UUID/optional-client-scopes" -r "$REALM" \
                   --fields name --format csv --noquotes 2>/dev/null | grep -c '^groups$' || true)
