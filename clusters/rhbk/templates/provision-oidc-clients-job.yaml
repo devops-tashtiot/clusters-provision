@@ -21,6 +21,12 @@
 # they DO work for a from-scratch bootstrap (e.g. after a full
 # teardown/recreate).
 #
+# For an already-existing client, redirectUris is explicitly re-applied on
+# every run (not just left alone once created) — confirmed live that a
+# stale redirectUri silently breaks login with Keycloak's "Invalid
+# parameter: redirect_uri" and nothing else in this Job's create-only-if-
+# missing logic would ever fix a values.yaml correction post-bootstrap.
+#
 # hook-weight -1 so this runs before set-client-secrets-job.yaml (default
 # weight 0) — that Job wait-loops for each client to exist, but there's no
 # reason to make it burn through retries when this can just run first.
@@ -137,7 +143,9 @@ spec:
                 SONARQUBE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$SONARQUBE_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
                 echo "  created ($SONARQUBE_UUID)."
               else
-                echo "  already exists ($SONARQUBE_UUID)."
+                "$KCADM" update "clients/$SONARQUBE_UUID" -r "$REALM" \
+                  -s 'redirectUris=["'"$SONARQUBE_REDIRECT_URI"'"]'
+                echo "  already exists ($SONARQUBE_UUID), redirectUris refreshed."
               fi
 
               echo "Ensuring '$GRAFANA_CLIENT_ID' client exists..."
@@ -152,7 +160,9 @@ spec:
                 GRAFANA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$GRAFANA_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
                 echo "  created ($GRAFANA_UUID)."
               else
-                echo "  already exists ($GRAFANA_UUID)."
+                "$KCADM" update "clients/$GRAFANA_UUID" -r "$REALM" \
+                  -s 'redirectUris=["'"$GRAFANA_REDIRECT_URI"'"]'
+                echo "  already exists ($GRAFANA_UUID), redirectUris refreshed."
               fi
 
               echo "Ensuring '$JIRA_CLIENT_ID' client exists..."
@@ -167,7 +177,9 @@ spec:
                 JIRA_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$JIRA_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
                 echo "  created ($JIRA_UUID)."
               else
-                echo "  already exists ($JIRA_UUID)."
+                "$KCADM" update "clients/$JIRA_UUID" -r "$REALM" \
+                  -s 'redirectUris=["'"$JIRA_REDIRECT_URI"'"]'
+                echo "  already exists ($JIRA_UUID), redirectUris refreshed."
               fi
 
               echo "Ensuring '$CONFLUENCE_CLIENT_ID' client exists..."
@@ -182,7 +194,9 @@ spec:
                 CONFLUENCE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CONFLUENCE_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
                 echo "  created ($CONFLUENCE_UUID)."
               else
-                echo "  already exists ($CONFLUENCE_UUID)."
+                "$KCADM" update "clients/$CONFLUENCE_UUID" -r "$REALM" \
+                  -s 'redirectUris=["'"$CONFLUENCE_REDIRECT_URI"'"]'
+                echo "  already exists ($CONFLUENCE_UUID), redirectUris refreshed."
               fi
 
               echo "Ensuring '$BITBUCKET_CLIENT_ID' client exists..."
@@ -197,7 +211,9 @@ spec:
                 BITBUCKET_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$BITBUCKET_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
                 echo "  created ($BITBUCKET_UUID)."
               else
-                echo "  already exists ($BITBUCKET_UUID)."
+                "$KCADM" update "clients/$BITBUCKET_UUID" -r "$REALM" \
+                  -s 'redirectUris=["'"$BITBUCKET_REDIRECT_URI"'"]'
+                echo "  already exists ($BITBUCKET_UUID), redirectUris refreshed."
               fi
 
               # Jira/Confluence/Bitbucket are intentionally excluded from the
