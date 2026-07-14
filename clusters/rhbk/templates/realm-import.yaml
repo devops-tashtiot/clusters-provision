@@ -87,6 +87,39 @@ spec:
               "included.client.audience": {{ .Values.devopsApiClient.clientId | quote }}
               "id.token.claim": "false"
               "access.token.claim": "true"
+      # Client scope requested only by devops-api's argocdServiceClient (client_credentials,
+      # for devops-api's outbound calls to ArgoCD's own API) — carries two things a real human
+      # OIDC login gets for free but a service account has neither of on its own:
+      # 1. An Audience mapper so the token's `aud` includes ArgoCD's own OIDC clientID
+      #    (argocd) — ArgoCD's oidc.config validates the token's audience against exactly
+      #    this, and a plain client_credentials token's default audience ("account") fails
+      #    that check (confirmed live).
+      # 2. A hardcoded "groups" claim — a service account has no real AD group membership for
+      #    ArgoCD's group-based RBAC (policy.csv) to key off of the way a real human login
+      #    does, so this stamps a synthetic group value instead. devtools-definition's
+      #    devops-tashtiot argocd policy.csv binds a scoped-down role to this exact group name
+      #    (NOT role:admin) — keep the two in sync if this value ever changes.
+      - name: "devops-api-argocd-audience"
+        protocol: "openid-connect"
+        description: "Marks a token as intended for ArgoCD's API (aud claim) and carries the synthetic RBAC group devops-api's outbound ArgoCD calls authenticate as"
+        protocolMappers:
+          - name: "argocd-audience"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-audience-mapper"
+            config:
+              "included.client.audience": {{ .Values.argocdClient.clientId | quote }}
+              "id.token.claim": "false"
+              "access.token.claim": "true"
+          - name: "devops-api-argocd-groups"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-hardcoded-claim-mapper"
+            config:
+              "claim.name": "groups"
+              "claim.value": "[\"devops-api-argocd-svc\"]"
+              "jsonType.label": "JSON"
+              "id.token.claim": "false"
+              "access.token.claim": "true"
+              "userinfo.token.claim": "false"
 
     clients:
       - clientId: {{ .Values.argocdClient.clientId | quote }}
@@ -193,6 +226,20 @@ spec:
         # grant, service account) to mint tokens for devops-api's own e2e test suite — shares
         # the same secret as the six browser-login clients (set-client-secrets-job.yaml), not a
         # distinct one. See values.yaml's e2eTestClient comment.
+      - clientId: {{ .Values.argocdServiceClient.clientId | quote }}
+        name: "devops-api ArgoCD service account"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        optionalClientScopes:
+          - "devops-api-argocd-audience"
+        # Same shared-secret convention as e2eTestClient above (set-client-secrets-job.yaml) —
+        # authenticates as itself via client_credentials to call ArgoCD's own API on
+        # devops-api's behalf. See values.yaml's argocdServiceClient comment for the full
+        # rationale (why a dedicated client instead of reusing "argocd"'s own service account).
       - clientId: {{ .Values.bitbucketClient.clientId | quote }}
         name: "Bitbucket"
         enabled: true

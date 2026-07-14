@@ -153,8 +153,24 @@ devopsApiClient:
 e2eTestClient:
   clientId: "devops-api-e2e-tests"
 
-# One shared OIDC client secret for ALL SIX clients above (argocd,
-# sonarqube, grafana, jira, confluence, bitbucket) — a single SSM parameter and a
+# A durable service-account client so devops-api can authenticate its own *outbound* calls to
+# ArgoCD's API (create/sync/modify/delete Application, for the cluster-secret routes) via a
+# short-lived client_credentials token, replacing the previous long-lived static ArgoCD API
+# token (SSM /devtools/argocd/api-token). Requests the devops-api-argocd-audience client scope
+# below — ArgoCD's own oidc.config (devtools-definition/devtools/argocd/values.yaml) validates
+# the token against its configured clientID (argocd), so the token's aud must include it, which
+# a plain client_credentials grant against the real "argocd" client does NOT do by default
+# (Keycloak's default audience for such a token is just "account"). A dedicated client (not
+# reusing the "argocd" browser-login client's own service account) also lets this identity carry
+# its own synthetic RBAC group — a service account has no real AD group membership for ArgoCD's
+# group-based RBAC (policy.csv) to key off of, unlike a real human login. See realm-import.yaml's
+# devops-api-argocd-audience client scope and devtools-definition/devtools/argocd's policy.csv
+# for the matching RBAC role.
+argocdServiceClient:
+  clientId: "devops-api-argocd"
+
+# One shared OIDC client secret for ALL SEVEN clients above (argocd,
+# sonarqube, grafana, jira, confluence, bitbucket, devops-api-argocd) — a single SSM parameter and a
 # single Job (templates/set-client-secrets-job.yaml) that sets the same
 # value on every client via the Admin REST API, rather than a distinct
 # secretSsmParameter + ExternalSecret + Job per client. Each app's own Helm
