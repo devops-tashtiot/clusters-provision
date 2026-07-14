@@ -255,3 +255,18 @@ spec:
         # above.
         # No secret here deliberately — same reasoning as ArgoCD's client
         # above; set-client-secrets-job.yaml sets the shared real value.
+      - clientId: {{ .Values.artifactoryClient.clientId | quote }}
+        name: "Artifactory"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - {{ .Values.artifactoryClient.redirectUri | quote }}
+        webOrigins:
+          - "+"
+        # No "groups" optionalClientScope — same reasoning as Jira's client
+        # above.
+        # No secret here deliberately — same reasoning as ArgoCD's client
+        # above; set-client-secrets-job.yaml sets the shared real value.

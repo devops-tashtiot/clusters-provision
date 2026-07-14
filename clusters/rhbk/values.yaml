@@ -133,6 +133,17 @@ bitbucketClient:
   clientId: "bitbucket"
   redirectUri: "" # https://bitbucket.devopstashtiot.page/plugins/servlet/oidc/callback — set per environment (Bitbucket 10.2.2's built-in SSO — same first-party feature/path as jira/confluence above)
 
+# Artifactory — same reasoning as Jira/Confluence/Bitbucket above: no "groups"
+# optionalClientScope, since Artifactory gets its own LDAP user directory
+# (against the same AD) for authorization, and this client exists purely for
+# OIDC login via Artifactory's classic oauthSettings/oauthProvidersSettings
+# system-config mechanism (not the newer Access-API /access/api/v1/oidc
+# resource, which is JFrog's CI/CD token-federation feature, not interactive
+# SSO — see devops-api/app/v1/artifactory/CLAUDE.md for that distinction).
+artifactoryClient:
+  clientId: "artifactory"
+  redirectUri: "" # https://artifactory.devopstashtiot.page/artifactory/webapp/oauth/callback — set per environment; unlike jira/confluence/bitbucket's built-in-DC SSO path, this is JFrog's documented OAuth SSO callback convention, not yet live-verified against an actual login flow
+
 # devops-api is an API, not a browser-login app — nothing redirects a user here, so unlike
 # the six clients above this has no redirectUri and all OIDC login flows disabled. It exists
 # purely as the "audience" target: the devops-api-audience client scope (see realm-import.yaml)
@@ -169,8 +180,8 @@ e2eTestClient:
 argocdServiceClient:
   clientId: "devops-api-argocd"
 
-# One shared OIDC client secret for ALL SEVEN clients above (argocd,
-# sonarqube, grafana, jira, confluence, bitbucket, devops-api-argocd) — a single SSM parameter and a
+# One shared OIDC client secret for ALL EIGHT clients above (argocd,
+# sonarqube, grafana, jira, confluence, bitbucket, artifactory, devops-api-argocd) — a single SSM parameter and a
 # single Job (templates/set-client-secrets-job.yaml) that sets the same
 # value on every client via the Admin REST API, rather than a distinct
 # secretSsmParameter + ExternalSecret + Job per client. Each app's own Helm

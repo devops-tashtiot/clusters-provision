@@ -1,10 +1,11 @@
 # Creates the "groups" client scope + protocol mapper, the "sonarqube"/
-# "grafana"/"jira"/"confluence"/"bitbucket" clients, and the "groups"
-# optional-client-scope association on the argocd/sonarqube/grafana clients
-# only — all via the Keycloak Admin REST API, idempotently. Jira/Confluence/
-# Bitbucket deliberately do NOT get the groups scope association: those apps
-# use their own LDAP user directory for authorization, not a Keycloak
-# group-membership claim (see jiraClient's comment in values.yaml).
+# "grafana"/"jira"/"confluence"/"bitbucket"/"artifactory" clients, and the
+# "groups" optional-client-scope association on the argocd/sonarqube/grafana
+# clients only — all via the Keycloak Admin REST API, idempotently.
+# Jira/Confluence/Bitbucket/Artifactory deliberately do NOT get the groups
+# scope association: those apps use their own LDAP user directory for
+# authorization, not a Keycloak group-membership claim (see jiraClient's
+# comment in values.yaml).
 #
 # realm-import.yaml ALSO declares these (clientScopes, the sonarqube/jira/
 # confluence/bitbucket clients, optionalClientScopes on argocd/sonarqube),
@@ -83,6 +84,10 @@ spec:
               value: {{ .Values.bitbucketClient.clientId | quote }}
             - name: BITBUCKET_REDIRECT_URI
               value: {{ .Values.bitbucketClient.redirectUri | quote }}
+            - name: ARTIFACTORY_CLIENT_ID
+              value: {{ .Values.artifactoryClient.clientId | quote }}
+            - name: ARTIFACTORY_REDIRECT_URI
+              value: {{ .Values.artifactoryClient.redirectUri | quote }}
             - name: DEVOPS_API_CLIENT_ID
               value: {{ .Values.devopsApiClient.clientId | quote }}
             - name: E2E_TEST_CLIENT_ID
@@ -236,6 +241,23 @@ spec:
                 "$KCADM" update "clients/$BITBUCKET_UUID" -r "$REALM" \
                   -s 'redirectUris=["'"$BITBUCKET_REDIRECT_URI"'"]'
                 echo "  already exists ($BITBUCKET_UUID), redirectUris refreshed."
+              fi
+
+              echo "Ensuring '$ARTIFACTORY_CLIENT_ID' client exists..."
+              ARTIFACTORY_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$ARTIFACTORY_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$ARTIFACTORY_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$ARTIFACTORY_CLIENT_ID" -s name=Artifactory -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+                  -s 'redirectUris=["'"$ARTIFACTORY_REDIRECT_URI"'"]' \
+                  -s 'webOrigins=["+"]'
+                ARTIFACTORY_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$ARTIFACTORY_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($ARTIFACTORY_UUID)."
+              else
+                "$KCADM" update "clients/$ARTIFACTORY_UUID" -r "$REALM" \
+                  -s 'redirectUris=["'"$ARTIFACTORY_REDIRECT_URI"'"]'
+                echo "  already exists ($ARTIFACTORY_UUID), redirectUris refreshed."
               fi
 
               echo "Ensuring '$DEVOPS_API_CLIENT_ID' client exists..."
