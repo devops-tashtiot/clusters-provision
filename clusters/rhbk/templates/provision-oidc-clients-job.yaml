@@ -83,6 +83,8 @@ spec:
               value: {{ .Values.bitbucketClient.clientId | quote }}
             - name: BITBUCKET_REDIRECT_URI
               value: {{ .Values.bitbucketClient.redirectUri | quote }}
+            - name: DEVOPS_API_CLIENT_ID
+              value: {{ .Values.devopsApiClient.clientId | quote }}
           command:
             - /bin/bash
             - -c
@@ -129,6 +131,24 @@ spec:
                 echo "  created."
               else
                 echo "  already exists ($GROUPS_SCOPE_ID)."
+              fi
+
+              echo "Ensuring 'devops-api-audience' client scope exists..."
+              # Same -q-doesn't-filter-client-scopes caveat as the 'groups' scope above.
+              AUDIENCE_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" --fields id,name --format csv --noquotes 2>/dev/null | grep ",devops-api-audience$" | cut -d, -f1 | tail -1 || true)
+              if [ -z "$AUDIENCE_SCOPE_ID" ]; then
+                "$KCADM" create client-scopes -r "$REALM" \
+                  -s name=devops-api-audience -s protocol=openid-connect \
+                  -s 'attributes."include.in.token.scope"=true'
+                AUDIENCE_SCOPE_ID=$("$KCADM" get client-scopes -r "$REALM" --fields id,name --format csv --noquotes | grep ",devops-api-audience$" | cut -d, -f1 | tail -1)
+                "$KCADM" create "client-scopes/$AUDIENCE_SCOPE_ID/protocol-mappers/models" -r "$REALM" \
+                  -s name=devops-api-audience -s protocol=openid-connect -s protocolMapper=oidc-audience-mapper \
+                  -s "config.\"included.client.audience\"=$DEVOPS_API_CLIENT_ID" \
+                  -s 'config."id.token.claim"=false' \
+                  -s 'config."access.token.claim"=true'
+                echo "  created."
+              else
+                echo "  already exists ($AUDIENCE_SCOPE_ID)."
               fi
 
               echo "Ensuring '$SONARQUBE_CLIENT_ID' client exists..."
@@ -216,9 +236,30 @@ spec:
                 echo "  already exists ($BITBUCKET_UUID), redirectUris refreshed."
               fi
 
+              echo "Ensuring '$DEVOPS_API_CLIENT_ID' client exists..."
+              # No redirectUris/webOrigins and all login flows disabled — devops-api is an
+              # API, not a browser-login app; this client exists purely as the audience
+              # target for the devops-api-audience scope above (see values.yaml's
+              # devopsApiClient comment). No redirectUri to refresh on the "already exists"
+              # branch, unlike the six clients above.
+              DEVOPS_API_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$DEVOPS_API_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$DEVOPS_API_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$DEVOPS_API_CLIENT_ID" -s name=devops-api -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+                  -s serviceAccountsEnabled=false
+                DEVOPS_API_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$DEVOPS_API_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($DEVOPS_API_UUID)."
+              else
+                echo "  already exists ($DEVOPS_API_UUID)."
+              fi
+
               # Jira/Confluence/Bitbucket are intentionally excluded from the
               # groups-scope association loop below — those apps authorize
               # via their own LDAP user directory, not a Keycloak groups claim.
+              # devops-api is excluded for the same reason as those three: it has no use
+              # for a Keycloak group-membership claim (it isn't itself a login target).
               echo "Ensuring 'groups' is an optional client scope on '$ARGOCD_CLIENT_ID', '$SONARQUBE_CLIENT_ID' and '$GRAFANA_CLIENT_ID'..."
               for CLIENT_ID_VAR in "$ARGOCD_CLIENT_ID" "$SONARQUBE_CLIENT_ID" "$GRAFANA_CLIENT_ID"; do
                 CLIENT_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$CLIENT_ID_VAR" --fields id --format csv --noquotes | tail -1)

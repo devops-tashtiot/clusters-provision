@@ -123,15 +123,27 @@ grafanaClient:
 # OIDC login.
 jiraClient:
   clientId: "jira"
-  redirectUri: "" # https://jira.devopstashtiot.page/plugins/servlet/oauth/callback — set per environment
+  redirectUri: "" # https://jira.devopstashtiot.page/plugins/servlet/oidc/callback — set per environment (built-in DC "Single sign-on" feature's fixed path, not the marketplace app's /oauth/callback originally assumed — see clusters-definition/clusters/rhbk/values.yaml's comment)
 
 confluenceClient:
   clientId: "confluence"
-  redirectUri: "" # https://confluence.devopstashtiot.page/plugins/servlet/oauth/callback — set per environment
+  redirectUri: "" # https://confluence.devopstashtiot.page/plugins/servlet/oidc/callback — set per environment (same built-in SSO path as jiraClient above)
 
 bitbucketClient:
   clientId: "bitbucket"
-  redirectUri: "" # https://bitbucket.devopstashtiot.page/plugins/servlet/oidc/callback — set per environment (Bitbucket 10.2.2's built-in SSO, not the oauth/callback marketplace-app path used by jira/confluence)
+  redirectUri: "" # https://bitbucket.devopstashtiot.page/plugins/servlet/oidc/callback — set per environment (Bitbucket 10.2.2's built-in SSO — same first-party feature/path as jira/confluence above)
+
+# devops-api is an API, not a browser-login app — nothing redirects a user here, so unlike
+# the six clients above this has no redirectUri and all OIDC login flows disabled. It exists
+# purely as the "audience" target: the devops-api-audience client scope (see realm-import.yaml)
+# carries an Audience protocol mapper pointing at this client's clientId, and whatever service
+# calls devops-api requests that scope on its own client so its tokens carry aud: devops-api.
+# devops-api itself verifies that audience on every inbound request — see devops-api's own
+# CLAUDE.md ("Inbound auth" section) and requirements.txt (tashtiot-apis-library >= v1.0.0,
+# general_create_app(enable_auth=True)). No client secret is provisioned for this client (see
+# set-client-secrets-job.yaml's header comment) — nothing authenticates *as* devops-api today.
+devopsApiClient:
+  clientId: "devops-api"
 
 # One shared OIDC client secret for ALL SIX clients above (argocd,
 # sonarqube, grafana, jira, confluence, bitbucket) — a single SSM parameter and a

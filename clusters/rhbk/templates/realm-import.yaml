@@ -68,6 +68,25 @@ spec:
               "id.token.claim": "true"
               "access.token.claim": "true"
               "userinfo.token.claim": "true"
+      # Optional client scope carrying devops-api's audience — requested/granted on the
+      # client of whatever service calls devops-api, so its access tokens carry
+      # aud: devops-api (this library's inbound AuthMiddleware checks AUTH_AUDIENCE against
+      # exactly that claim). Not a default scope, same reasoning as "groups" above — each
+      # caller client opts in explicitly rather than every token in the realm gaining this
+      # audience. Not associated with any client here (no caller of devops-api is known
+      # yet); whoever ends up calling devops-api adds it to their own client's
+      # optionalClientScopes.
+      - name: "devops-api-audience"
+        protocol: "openid-connect"
+        description: "Marks a token as intended for devops-api (aud claim)"
+        protocolMappers:
+          - name: "devops-api-audience"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-audience-mapper"
+            config:
+              "included.client.audience": {{ .Values.devopsApiClient.clientId | quote }}
+              "id.token.claim": "false"
+              "access.token.claim": "true"
 
     clients:
       - clientId: {{ .Values.argocdClient.clientId | quote }}
@@ -147,6 +166,19 @@ spec:
         # above.
         # No secret here deliberately — same reasoning as ArgoCD's client
         # above; set-client-secrets-job.yaml sets the shared real value.
+      - clientId: {{ .Values.devopsApiClient.clientId | quote }}
+        name: "devops-api"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        # No redirectUris/webOrigins — devops-api is an API, not a browser-login app; this
+        # client exists purely as the audience target for the devops-api-audience client
+        # scope above. No secret — unlike the six clients above, nothing authenticates *as*
+        # this client (no login flow, no service account), so it's deliberately excluded
+        # from set-client-secrets-job.yaml too. See values.yaml's devopsApiClient comment.
       - clientId: {{ .Values.bitbucketClient.clientId | quote }}
         name: "Bitbucket"
         enabled: true
