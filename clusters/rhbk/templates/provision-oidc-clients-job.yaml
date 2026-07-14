@@ -92,6 +92,8 @@ spec:
               value: {{ .Values.devopsApiClient.clientId | quote }}
             - name: E2E_TEST_CLIENT_ID
               value: {{ .Values.e2eTestClient.clientId | quote }}
+            - name: ARGOCD_SERVICE_CLIENT_ID
+              value: {{ .Values.argocdServiceClient.clientId | quote }}
           command:
             - /bin/bash
             - -c
@@ -277,6 +279,32 @@ spec:
                 echo "  created ($DEVOPS_API_UUID)."
               else
                 echo "  already exists ($DEVOPS_API_UUID)."
+              fi
+
+              echo "Ensuring '$ARGOCD_SERVICE_CLIENT_ID' client exists..."
+              # Client-only fix for a pre-existing gap: this client was added to
+              # realm-import.yaml (serviceAccountsEnabled=true, optionalClientScopes:
+              # devops-api-argocd-audience) but never backported here, so on this
+              # already-bootstrapped realm it never actually got created — confirmed
+              # live: rhbk-set-client-secrets hung indefinitely on "Waiting for client
+              # 'devops-api-argocd' to exist..." until this block was added. This only
+              # creates the client (unblocks the secret-setting job); the
+              # devops-api-argocd-audience client-scope + its two protocol mappers
+              # (argocd-audience, devops-api-argocd-groups — see realm-import.yaml)
+              # still need the same create-if-missing + associate treatment as
+              # devops-api-audience/groups above before this client's audience/RBAC
+              # wiring actually works, not just its secret.
+              ARGOCD_SERVICE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$ARGOCD_SERVICE_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$ARGOCD_SERVICE_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$ARGOCD_SERVICE_CLIENT_ID" -s name="devops-api ArgoCD service account" -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+                  -s serviceAccountsEnabled=true
+                ARGOCD_SERVICE_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$ARGOCD_SERVICE_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($ARGOCD_SERVICE_UUID)."
+              else
+                echo "  already exists ($ARGOCD_SERVICE_UUID)."
               fi
 
               echo "Ensuring '$E2E_TEST_CLIENT_ID' client exists..."
