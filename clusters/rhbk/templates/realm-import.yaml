@@ -179,6 +179,20 @@ spec:
         # scope above. No secret — unlike the six clients above, nothing authenticates *as*
         # this client (no login flow, no service account), so it's deliberately excluded
         # from set-client-secrets-job.yaml too. See values.yaml's devopsApiClient comment.
+      - clientId: {{ .Values.e2eTestClient.clientId | quote }}
+        name: "devops-api e2e tests"
+        enabled: true
+        protocol: "openid-connect"
+        publicClient: false
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        optionalClientScopes:
+          - "devops-api-audience"
+        # Unlike devopsApiClient above, this one DOES authenticate as itself (client_credentials
+        # grant, service account) to mint tokens for devops-api's own e2e test suite — shares
+        # the same secret as the six browser-login clients (set-client-secrets-job.yaml), not a
+        # distinct one. See values.yaml's e2eTestClient comment.
       - clientId: {{ .Values.bitbucketClient.clientId | quote }}
         name: "Bitbucket"
         enabled: true

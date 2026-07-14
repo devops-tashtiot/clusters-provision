@@ -85,6 +85,8 @@ spec:
               value: {{ .Values.bitbucketClient.redirectUri | quote }}
             - name: DEVOPS_API_CLIENT_ID
               value: {{ .Values.devopsApiClient.clientId | quote }}
+            - name: E2E_TEST_CLIENT_ID
+              value: {{ .Values.e2eTestClient.clientId | quote }}
           command:
             - /bin/bash
             - -c
@@ -253,6 +255,33 @@ spec:
                 echo "  created ($DEVOPS_API_UUID)."
               else
                 echo "  already exists ($DEVOPS_API_UUID)."
+              fi
+
+              echo "Ensuring '$E2E_TEST_CLIENT_ID' client exists..."
+              # Unlike devopsApiClient above, this one has serviceAccountsEnabled=true — it
+              # authenticates as itself (client_credentials) to mint tokens for devops-api's own
+              # e2e test suite. No redirectUris/webOrigins (not a browser-login flow either).
+              E2E_TEST_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$E2E_TEST_CLIENT_ID" --fields id --format csv --noquotes 2>/dev/null | tail -1 || true)
+              if [ -z "$E2E_TEST_UUID" ]; then
+                "$KCADM" create clients -r "$REALM" \
+                  -s clientId="$E2E_TEST_CLIENT_ID" -s name="devops-api e2e tests" -s enabled=true \
+                  -s protocol=openid-connect -s publicClient=false \
+                  -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+                  -s serviceAccountsEnabled=true
+                E2E_TEST_UUID=$("$KCADM" get clients -r "$REALM" -q clientId="$E2E_TEST_CLIENT_ID" --fields id --format csv --noquotes | tail -1)
+                echo "  created ($E2E_TEST_UUID)."
+              else
+                echo "  already exists ($E2E_TEST_UUID)."
+              fi
+
+              echo "Ensuring 'devops-api-audience' is an optional client scope on '$E2E_TEST_CLIENT_ID'..."
+              E2E_ALREADY_ASSOCIATED=$("$KCADM" get "clients/$E2E_TEST_UUID/optional-client-scopes" -r "$REALM" \
+                --fields name --format csv --noquotes 2>/dev/null | grep -c '^devops-api-audience$' || true)
+              if [ "$E2E_ALREADY_ASSOCIATED" = "0" ]; then
+                "$KCADM" update "clients/$E2E_TEST_UUID/optional-client-scopes/$AUDIENCE_SCOPE_ID" -r "$REALM" -b '{}'
+                echo "  associated devops-api-audience scope with $E2E_TEST_CLIENT_ID."
+              else
+                echo "  $E2E_TEST_CLIENT_ID already has devops-api-audience scope."
               fi
 
               # Jira/Confluence/Bitbucket are intentionally excluded from the
