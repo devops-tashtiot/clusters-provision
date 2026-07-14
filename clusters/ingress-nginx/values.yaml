@@ -40,7 +40,7 @@ ingress-nginx:
   # the library hardcodes 7995 with no way to override it.
   #
   # TEMPORARY — remove once Platform-Infra-Org/apis-library merges an ssh_port override
-  # (PR opened 2026-07-14, tracking: https://github.com/Platform-Infra-Org/apis-library/pull/TBD)
+  # (tracking: https://github.com/Platform-Infra-Org/apis-library/pull/12)
   # and devops-api bumps to a version with it, configured to the real port 7999 directly.
   # At that point this 7995->7999 translation shim serves no purpose — don't leave it lying
   # around as a redundant hop once the actual bug is fixed at the source.
