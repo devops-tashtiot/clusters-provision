@@ -144,26 +144,6 @@ artifactoryClient:
   clientId: "artifactory"
   redirectUri: "" # https://artifactory.devopstashtiot.page/artifactory/webapp/oauth/callback — set per environment; unlike jira/confluence/bitbucket's built-in-DC SSO path, this is JFrog's documented OAuth SSO callback convention, not yet live-verified against an actual login flow
 
-# devops-api is an API, not a browser-login app — nothing redirects a user here, so unlike
-# the six clients above this has no redirectUri and all OIDC login flows disabled. It exists
-# purely as the "audience" target: the devops-api-audience client scope (see realm-import.yaml)
-# carries an Audience protocol mapper pointing at this client's clientId, and whatever service
-# calls devops-api requests that scope on its own client so its tokens carry aud: devops-api.
-# devops-api itself verifies that audience on every inbound request — see devops-api's own
-# CLAUDE.md ("Inbound auth" section) and requirements.txt (tashtiot-apis-library >= v1.0.0,
-# general_create_app(enable_auth=True)). No client secret is provisioned for this client (see
-# set-client-secrets-job.yaml's header comment) — nothing authenticates *as* devops-api today.
-devopsApiClient:
-  clientId: "devops-api"
-
-# A durable client for devops-api's own e2e test suite (tests/v1/*/test_*_e2e.py) — mints a
-# real client_credentials token carrying the devops-api-audience scope, so those tests can
-# call devops-api's own now-authenticated API instead of getting a blanket 401. Shares the
-# same secret as the six browser-login clients above (sharedClientSecretSsmParameter below) —
-# one more consumer of that same value, not a new secret to manage.
-e2eTestClient:
-  clientId: "devops-api-e2e-tests"
-
 # A durable service-account client so devops-api can authenticate its own *outbound* calls to
 # ArgoCD's API (create/sync/modify/delete Application, for the cluster-secret routes) via a
 # short-lived client_credentials token, replacing the previous long-lived static ArgoCD API
