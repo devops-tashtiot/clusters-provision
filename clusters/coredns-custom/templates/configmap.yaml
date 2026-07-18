@@ -1,0 +1,23 @@
+# VERIFY AFTER FIRST DEPLOY: this assumes the EKS-managed coredns addon's
+# default Corefile contains `import custom/*.override` inside its main server
+# block (the documented AWS extension point for exactly this use case). Confirm
+# with `kubectl get configmap coredns -n kube-system -o yaml` once the cluster
+# exists — if that import line isn't present for the addon version actually in
+# use, this ConfigMap is inert and the addon's own Corefile needs a direct
+# `configuration_values` override instead (devtools-labs' eks module's
+# `addons.coredns` block).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  devopstashtiot.override: |
+    {{- range .Values.rewrites }}
+    rewrite name exact {{ .host }} ingress-nginx-controller.ingress-nginx.svc.cluster.local answer auto
+    {{- end }}
+    # Per-consumer ArgoCD wildcard is a deliberate exception: there's no
+    # Ingress rule for arbitrary *.argocd subdomains (only the bare host is
+    # configured), so it routes straight to the one real argocd-server
+    # instead, which has its own self-signed TLS listener on 443.
+    rewrite name regex (.*)\.argocd\.devopstashtiot\.page argocd-server.argocd.svc.cluster.local answer auto

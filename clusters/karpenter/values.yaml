@@ -1,0 +1,52 @@
+# Base values — cluster name, interruption queue name and the node IAM role
+# name are all env-specific (see clusters-definition's override), sourced
+# from devtools-labs' eks module outputs (karpenter_node_iam_role_name etc.).
+
+karpenter:
+  serviceAccount:
+    # Must match exactly — this is the ServiceAccount name the Pod Identity
+    # association (devtools-labs/terraform/modules/eks, module.karpenter,
+    # service_account = "karpenter") is scoped to. No IAM annotation needed
+    # here (unlike IRSA) — Pod Identity's match is namespace+name alone.
+    name: "karpenter"
+
+  # Pinned onto the stable system Managed Node Group — Karpenter's own
+  # controller must never run on capacity it manages itself (it would be
+  # able to evict/consolidate its own node out from under itself).
+  nodeSelector:
+    devtools/role: system-critical
+
+  settings:
+    eksControlPlane: true
+    # clusterName / interruptionQueue: set in clusters-definition.
+
+  controller:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Values consumed only by this umbrella chart's own templates/ (the
+# EC2NodeClass/NodePool objects) — kept under "wrapper" so they never
+# collide with the karpenter subchart's own top-level key above.
+wrapper:
+  # IAM role name Karpenter-launched nodes assume — devtools-labs' eks
+  # module's karpenter_node_iam_role_name output. Set in clusters-definition.
+  nodeIamRoleName: ""
+
+  # Instance selection for the workload NodePools — deliberately wide
+  # (several families/sizes) rather than one fixed type, since that's the
+  # direct fix for the Spot-capacity depletion the platform hit before at
+  # m6i.4xlarge+ (see devtools-labs' minikube module's instance_type
+  # comment). Not env-specific, but kept overridable here rather than
+  # hardcoded in the template.
+  nodePool:
+    instanceCategories: ["c", "m", "r"]
+    instanceGenerationGreaterThan: "4"
+    instanceCpuValues: ["2", "4", "8"]
+    spotLimitCpu: "64"
+    onDemandLimitCpu: "32"
+    consolidateAfter: "1m"

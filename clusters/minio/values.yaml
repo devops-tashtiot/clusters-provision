@@ -33,7 +33,7 @@ minio:
 
   persistence:
     enabled: true
-    storageClassName: gp2
+    storageClassName: gp3
     size: 5Gi
 
   service:

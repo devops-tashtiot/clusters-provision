@@ -1,0 +1,36 @@
+# Tried first (weight 100 > the on-demand pool's weight 1) for every pending
+# pod that can't be scheduled — Karpenter tries the highest-weight NodePool
+# whose EC2NodeClass/requirements it can satisfy, falling through to the next
+# only on genuine capacity failure. Deliberately wide instance requirements
+# (several families/sizes, not one fixed type) is the direct fix for the
+# Spot-capacity depletion this platform hit before at m6i.4xlarge+.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: devtools-workload-spot
+spec:
+  weight: 100
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: {{ .Values.wrapper.nodePool.consolidateAfter | quote }}
+  limits:
+    cpu: {{ .Values.wrapper.nodePool.spotLimitCpu | quote }}
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: devtools-workload
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: {{ .Values.wrapper.nodePool.instanceCategories | toYaml | nindent 12 }}
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: [{{ .Values.wrapper.nodePool.instanceGenerationGreaterThan | quote }}]
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: {{ .Values.wrapper.nodePool.instanceCpuValues | toYaml | nindent 12 }}

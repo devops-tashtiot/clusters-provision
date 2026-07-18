@@ -1,0 +1,17 @@
+apiVersion: v2
+name: karpenter
+description: >-
+  Karpenter umbrella chart for devtools — provisions the actual workload
+  compute (Bitbucket/Confluence/Jira/Artifactory/Xray pods, and every other
+  cluster-infra tool once bootstrap capacity allows) reactively, Spot-first
+  with On-Demand fallback, instead of a fixed-size node group. Runs pinned to
+  the small, stable EKS Managed Node Group (see devtools-labs' eks module)
+  via nodeSelector — it must never be scheduled onto capacity it manages
+  itself.
+type: application
+version: 1.0.0
+appVersion: "1.14.0"
+dependencies:
+  - name: karpenter
+    version: 1.14.0
+    repository: "file://./charts/karpenter"

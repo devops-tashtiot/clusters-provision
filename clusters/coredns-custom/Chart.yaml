@@ -1,0 +1,17 @@
+apiVersion: v2
+name: coredns-custom
+description: >-
+  In-cluster *.devopstashtiot.page rewrites (Cloudflare Access blocks
+  non-browser/programmatic requests to the real public hostnames, so any
+  caller running inside the cluster — e.g. devops-api calling another
+  devtool — needs these routed straight to ingress-nginx-controller's
+  ClusterIP instead). On minikube this same content is applied directly by
+  devtools-labs/terraform/modules/minikube/main.tf against minikube's own
+  bundled CoreDNS addon. On EKS, CoreDNS is a managed addon that reconciles
+  its own ConfigMap on every version bump, so a direct overwrite would be
+  silently reverted — this chart uses the coredns-custom
+  ConfigMap/`import custom/*.override` extension point EKS's managed addon
+  ships specifically for this purpose instead.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

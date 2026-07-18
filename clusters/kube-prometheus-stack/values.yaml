@@ -30,7 +30,7 @@ kube-prometheus-stack:
       storageSpec:
         volumeClaimTemplate:
           spec:
-            storageClassName: gp2
+            storageClassName: gp3
             accessModes: ["ReadWriteOnce"]
             resources:
               requests:
@@ -47,7 +47,7 @@ kube-prometheus-stack:
 
     persistence:
       enabled: true
-      storageClassName: gp2
+      storageClassName: gp3
       size: 2Gi
 
     # Reuses this platform's shared admin password Secret (see

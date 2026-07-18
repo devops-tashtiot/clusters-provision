@@ -1,0 +1,11 @@
+apiVersion: v2
+name: ebs-storageclass
+description: >-
+  Default StorageClass for EBS-backed dynamic PVC provisioning via the EBS
+  CSI driver (devtools-labs' eks module wires the driver itself + its Pod
+  Identity role). No equivalent chart exists for minikube — minikube's
+  "standard" StorageClass is its own built-in hostpath-backed default, not
+  something any chart in this platform ever defined.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

@@ -1,0 +1,12 @@
+# Same host list as devtools-labs/terraform/modules/minikube/main.tf's
+# CoreDNS rewrite step — kept as a plain list here (rather than hardcoded
+# rewrite lines in the template) so adding a new devtool hostname is a
+# one-line values change, not a template edit.
+rewrites:
+  - host: argocd.devopstashtiot.page
+  - host: bitbucket.devopstashtiot.page
+  - host: confluence.devopstashtiot.page
+  - host: jira.devopstashtiot.page
+  - host: sonarqube.devopstashtiot.page
+  - host: artifactory.devopstashtiot.page
+  - host: rhbk.devopstashtiot.page

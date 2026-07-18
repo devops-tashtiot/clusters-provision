@@ -1,0 +1,29 @@
+# Discovers subnets/security group via the karpenter.sh/discovery tag
+# devtools-labs' eks module already applies (aws_ec2_tag resources) to the
+# same pre-existing LZA spoke subnets modules/minikube/modules/rds use, and
+# to the shared node security group module.eks.node_security_group_id — both
+# tagged with the cluster name as the value.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: devtools-workload
+spec:
+  amiFamily: AL2023
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: {{ .Values.wrapper.nodeIamRoleName | required "wrapper.nodeIamRoleName must be set (devtools-labs eks module's karpenter_node_iam_role_name output) — see clusters-definition/clusters/karpenter/values.yaml" | quote }}
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: {{ .Values.karpenter.settings.clusterName | required "karpenter.settings.clusterName must be set — see clusters-definition/clusters/karpenter/values.yaml" | quote }}
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: {{ .Values.karpenter.settings.clusterName | quote }}
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        deleteOnTermination: true
+        encrypted: true
+  tags:
+    karpenter.sh/discovery: {{ .Values.karpenter.settings.clusterName | quote }}

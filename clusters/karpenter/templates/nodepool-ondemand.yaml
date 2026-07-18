@@ -1,0 +1,30 @@
+# Fallback only — weight 1, tried by Karpenter only when the spot pool
+# (weight 100, nodepool-spot.yaml) genuinely can't get Spot capacity for any
+# of the requested instance types at that moment.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: devtools-workload-ondemand
+spec:
+  weight: 1
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: {{ .Values.wrapper.nodePool.consolidateAfter | quote }}
+  limits:
+    cpu: {{ .Values.wrapper.nodePool.onDemandLimitCpu | quote }}
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: devtools-workload
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: {{ .Values.wrapper.nodePool.instanceCategories | toYaml | nindent 12 }}
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: {{ .Values.wrapper.nodePool.instanceCpuValues | toYaml | nindent 12 }}

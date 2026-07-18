@@ -1,0 +1,13 @@
+storageClass:
+  name: gp3
+  volumeType: gp3
+  # WaitForFirstConsumer (not Immediate): Karpenter provisions nodes
+  # reactively, in response to pending pods — Immediate binding could create
+  # the EBS volume in a zone before Karpenter picks a node/zone for the pod,
+  # permanently deadlocking it if Spot capacity isn't in that zone (EBS
+  # volumes can't cross zones). WaitForFirstConsumer keeps volume placement
+  # and node placement in sync.
+  volumeBindingMode: WaitForFirstConsumer
+  reclaimPolicy: Delete
+  allowVolumeExpansion: true
+  isDefault: true
