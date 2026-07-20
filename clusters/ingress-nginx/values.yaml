@@ -30,26 +30,22 @@ ingress-nginx:
 
   # TCP passthrough — ingress-nginx only routes HTTP(S) by Host header; raw TCP protocols
   # need this separate mechanism (a ConfigMap the controller reads, standard ingress-nginx
-  # feature, not an ingress-nginx-specific hack). Currently just Bitbucket's real SSH port.
-  # devops-api's Git connector (tashtiot-apis-library's Git, ssh_port param — merged via
-  # Platform-Infra-Org/apis-library#12, shipped in v1.2.1) dials
-  # ssh://git@bitbucket.devopstashtiot.page:7999/... — that hostname resolves in-cluster
+  # feature, not an ingress-nginx-specific hack). Currently just Bitbucket's SSH mirroring
+  # port. devops-api's Git connector (tashtiot-apis-library's Git.delete_file) builds
+  # ssh://git@bitbucket.devopstashtiot.page:7995/... — that hostname resolves in-cluster
   # to this same ingress-nginx-controller (see kube-system/coredns's rewrite rules,
-  # documented in devops-api/app/v1/argocd/CLAUDE.md), which needs an explicit listener
-  # entry for whatever port is dialed — there's no automatic "any port forwards to the
-  # matching backend port" behavior in this mechanism, so the key here must always match
-  # devops-api's actual GIT_SSH_PORT.
+  # documented in devops-api/app/v1/argocd/CLAUDE.md), which had no listener on 7995 at
+  # all, so the connection just hung until timeout rather than failing fast. 7995 is also
+  # not Bitbucket's real SSH port (7999, confirmed via `kubectl get svc -n bitbucket`) —
+  # the library hardcodes 7995 with no way to override it.
   #
-  # History: this used to be "7995": "bitbucket/bitbucket:7999" — a translation shim for
-  # when the library hardcoded port 7995 (not Bitbucket's real SSH port, confirmed via
-  # `kubectl get svc -n bitbucket` → 7999). Once the library added the ssh_port override
-  # and devops-api's GIT_SSH_PORT defaulted to the real 7999, the *key* here still needed
-  # updating to 7999 to match — it wasn't automatic, and leaving it at 7995 while
-  # devops-api dialed 7999 reproduced the exact same symptom (connection hangs until
-  # client timeout) confirmed live 2026-07-20. Fixed by changing the key itself; no
-  # translation is needed anymore since both sides now agree on the real port.
+  # TEMPORARY — remove once Platform-Infra-Org/apis-library merges an ssh_port override
+  # (tracking: https://github.com/Platform-Infra-Org/apis-library/pull/12)
+  # and devops-api bumps to a version with it, configured to the real port 7999 directly.
+  # At that point this 7995->7999 translation shim serves no purpose — don't leave it lying
+  # around as a redundant hop once the actual bug is fixed at the source.
   tcp:
-    "7999": "bitbucket/bitbucket:7999"
+    "7995": "bitbucket/bitbucket:7999"
 
 # Values consumed only by this umbrella chart's own templates/ (not passed to
 # the ingress-nginx subchart) — kept under "wrapper" so they never collide
@@ -60,7 +56,7 @@ wrapper:
   # default TLS cert — see origin-cert-secret.yaml. Left empty here; set per
   # environment in clusters-definition (along with the matching
   # controller.extraArgs.default-ssl-certificate override), same pattern as
-# rhbk's ldap.*SsmParameter values.
+  # rhbk's ldap.*SsmParameter values.
   originCert:
     crtSsmParameter: ""
     keySsmParameter: ""
