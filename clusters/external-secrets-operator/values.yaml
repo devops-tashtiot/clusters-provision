@@ -34,6 +34,18 @@ external-secrets:
         cpu: 100m
         memory: 64Mi
 
+  # Enables ExternalSecret's spec.target.manifest field ("generic targets") — needed by
+  # devtools-provision/devtools/argocd/templates/trusted-certs.yaml, which creates a ConfigMap
+  # (argocd-tls-certs-cm) directly from an ExternalSecret instead of the usual Secret, since
+  # ArgoCD's repo-server reads trusted git-clone certs from a ConfigMap, not a Secret — the
+  # normal ExternalSecret target type. Disabled by default upstream (renders
+  # --unsafe-allow-generic-targets=true) because it grants the controller create/update/delete
+  # on ConfigMaps cluster-wide, not just Secrets — a materially bigger permission surface, hence
+  # the "unsafe" naming. Only ConfigMap permissions are granted (the base kind this flag always
+  # covers); no genericTargets.resources entries are added since nothing else needs it yet.
+  genericTargets:
+    enabled: true
+
 # Values consumed only by this umbrella chart's own templates/ (not passed to
 # the external-secrets subchart) — kept under "wrapper" so they never collide
 # with the external-secrets subchart's own top-level key above.
